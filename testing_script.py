@@ -29,3 +29,5 @@ print(output["dark3"].size())
 print(output["dark4"].size())
 print(output["dark5"].size())
 
+print("test")
+
