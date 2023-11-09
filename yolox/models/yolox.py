@@ -6,6 +6,7 @@ import torch.nn as nn
 
 from .yolo_head import YOLOXHead
 from .yolo_pafpn import YOLOPAFPN
+from .yolino_head import YOLinOHead
 
 
 class YOLOX(nn.Module):
@@ -15,35 +16,58 @@ class YOLOX(nn.Module):
     and detection results during test.
     """
 
-    def __init__(self, backbone=None, head=None):
+    def __init__(self, backbone=None, head=None, head_yolino=None):
         super().__init__()
         if backbone is None:
             backbone = YOLOPAFPN()
         if head is None:
             head = YOLOXHead(80)
+        # if head_yolino is None:
+        #     head_yolino = YOLinOHead(num_classes=3, num_predictors_per_cell=1)
 
         self.backbone = backbone
         self.head = head
+        self.head_yolino = head_yolino
 
     def forward(self, x, targets=None):
         # fpn output content features of [dark3, dark4, dark5]
         fpn_outs = self.backbone(x)
 
-        if self.training:
-            assert targets is not None
-            loss, iou_loss, conf_loss, cls_loss, l1_loss, num_fg = self.head(
-                fpn_outs, targets, x
-            )
-            outputs = {
-                "total_loss": loss,
-                "iou_loss": iou_loss,
-                "l1_loss": l1_loss,
-                "conf_loss": conf_loss,
-                "cls_loss": cls_loss,
-                "num_fg": num_fg,
-            }
+        if self.head_yolino is None:
+            # Object detection with YOLOXHead
+            if self.training:
+                assert targets is not None
+                loss, iou_loss, conf_loss, cls_loss, l1_loss, num_fg = self.head(
+                    fpn_outs, targets, x
+                )
+                outputs = {
+                    "total_loss": loss,
+                    "iou_loss": iou_loss,
+                    "l1_loss": l1_loss,
+                    "conf_loss": conf_loss,
+                    "cls_loss": cls_loss,
+                    "num_fg": num_fg,
+                }
+            else:
+                outputs = self.head(fpn_outs)
+                
         else:
-            outputs = self.head(fpn_outs)
+            # Magnetic tape detection with YOLinO
+            if self.training:
+                assert targets is not None
+                L_loc, L_resp, L_noresp, L_class, total_loss = self.head_yolino(fpn_outs, targets, x)
+
+                outputs = {
+                    "location_loss": L_loc,
+                    "responsible_loss": L_resp,
+                    "no_responsible_loss": L_noresp,
+                    "class_loss": L_class,
+                    "total_loss": total_loss,
+                }
+            
+            else:
+                outputs = self.head_yolino(fpn_outs)
+
 
         return outputs
 
