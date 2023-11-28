@@ -13,12 +13,12 @@ import os
 import cv2
 import numpy as np
 from pycocotools.coco import COCO
+import xml.etree.ElementTree as ET
 
 from ..dataloading import get_yolox_datadir
 from .datasets_wrapper import CacheDataset, cache_read_img
 from .dais_classes import DAIS_CLASSES
-
-
+from .convert2cartesian import Converter
 
 class DAISDataset(CacheDataset):
     """
@@ -30,7 +30,8 @@ class DAISDataset(CacheDataset):
         data_dir=None,
         json_file="instances_train.json",
         name="train",
-        img_size=(416, 416),
+        img_size=(640, 640),
+        mag_tape=False,
         preproc=None,
         cache=False,
         cache_type="ram",
@@ -48,6 +49,11 @@ class DAISDataset(CacheDataset):
             data_dir = os.path.join(get_yolox_datadir(), "DAIS-COCO")
         self.data_dir = data_dir
         self.json_file = json_file
+        self.mag_tape = mag_tape
+
+        self.max_num_points = self.get_max_num_points_from_xml("annotations.xml")
+        self.square_size = 32
+        self.converter = Converter(width=img_size[0], height=img_size[1], square_size=self.square_size)
 
         self.coco = COCO(os.path.join(self.data_dir, "annotations_xml", self.json_file))
         self.ids = self.coco.getImgIds()
@@ -58,9 +64,15 @@ class DAISDataset(CacheDataset):
         self.name = name
         self.img_size = img_size
         self.preproc = preproc
-        self.annotations = self._load_coco_annotations()
+        self.annotations = self._load_mag_tape_annotations() if self.mag_tape else self._load_coco_annotations()
 
         path_filename = [os.path.join(name, anno[3]) for anno in self.annotations]
+
+        # print("IDs: ", self.ids)
+        # print("Num_imgs: ", self.num_imgs)
+        # print("Class ids: ", self.class_ids)
+        # print("Cats: ", self.cats)
+        # print("Classes: ", self._classes)
         
         super().__init__(
             input_dimension=img_size,
@@ -85,9 +97,12 @@ class DAISDataset(CacheDataset):
         anno_ids = self.coco.getAnnIds(imgIds=[int(id_)], iscrowd=False)
         annotations = self.coco.loadAnns(anno_ids)
 
+        bbox_annotations = [annotations[i] for i in range(len(annotations)) if "bbox" in annotations[i]]
+        
+        # Only bounding boxes
         objs = []
         count = 0
-        for obj in annotations:
+        for obj in bbox_annotations:
             x1 = np.max((0, obj["bbox"][0]))
             y1 = np.max((0, obj["bbox"][1]))
             x2 = np.min((width, x1 + np.max((0, obj["bbox"][2]))))
@@ -103,7 +118,7 @@ class DAISDataset(CacheDataset):
 
         num_objs = len(objs)
 
-        res = np.zeros((num_objs, 5))
+        res = np.zeros((num_objs, 5)) 
         for ix, obj in enumerate(objs):
             cls = self.class_ids.index(obj["category_id"])
             res[ix, 0:4] = obj["clean_bbox"]
@@ -124,9 +139,66 @@ class DAISDataset(CacheDataset):
         if count > 0:
             logger.info("For image {}, {} annotations were excluded".format(file_name, count))
 
-
         return (res, img_info, resized_info, file_name)
+    
+    def _load_mag_tape_annotations(self):
+        return [self.load_mag_tape_anno_from_ids(_ids) for _ids in self.ids]
+    
+    def load_mag_tape_anno_from_ids(self, id_):
+        im_ann = self.coco.loadImgs(id_)[0]
+        width = im_ann["width"]
+        height = im_ann["height"]
+        anno_ids = self.coco.getAnnIds(imgIds=[int(id_)], iscrowd=False)
+        annotations = self.coco.loadAnns(anno_ids)
 
+        # Split the annotations to bboxes and magnetic tape
+        mag_tape_annotations = [annotations[i] for i in range(len(annotations)) if "line" in annotations[i]]
+
+        # Ratio
+        r = min(self.img_size[0] / height, self.img_size[1] / width)
+
+        # Only polylines
+        lines = []
+        for line in mag_tape_annotations:
+            points = line["line"]
+            lines.append(points)
+
+        cartesian_lines = self.converter.to_cartesian(lines)
+        cartesian_lines = cartesian_lines.transpose(2, 0, 1) # Now the annotations are in shape (5, 20, 20) when convertng to tensor add batch size
+        
+        cartesian_lines = np.where(np.isnan(cartesian_lines), np.zeros_like(cartesian_lines), cartesian_lines)
+
+        img_info = (height, width)
+        resized_info = (int(height * r), int(width * r))
+
+        file_name = (
+            im_ann["file_name"]
+            if "file_name" in im_ann
+            else "{:012}".format(id_) + ".jpg"
+        )
+
+        logger.info("Image {}".format(file_name))
+        return (cartesian_lines, img_info, resized_info, file_name)
+    
+    def get_max_num_points_from_xml(self, annotations_xml):
+        "annotations_xml: name of the annotation file containing train and valid images"
+        annotations_xml_path = os.path.join(self.data_dir, "annotations_xml", annotations_xml)
+
+        tree = ET.parse(annotations_xml_path)
+        root = tree.getroot()
+        all_images = root.findall("image")
+
+        max_num_points = 0
+        for image in all_images:
+            for poly in image.findall("polyline"):
+                points_string = poly.get("points").split(";")
+                points = [list(map(float, coordinate_str.split(','))) for coordinate_str in points_string]
+
+                if len(points) > max_num_points:
+                    max_num_points = len(points)
+        
+        return max_num_points
+    
     def load_anno(self, index):
         return self.annotations[index][0]
 
@@ -185,6 +257,8 @@ class DAISDataset(CacheDataset):
 
         if self.preproc is not None:
             img, target = self.preproc(img, target, self.input_dim)
+
+        # logger.info(f"Target shape:{target.shape}, target type: {type(target)}.")
         return img, target, img_info, img_id
 
 ####################################################################################################################################

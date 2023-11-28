@@ -9,6 +9,7 @@ from .dais_classes import DAIS_CLASSES
 from .datasets_wrapper import CacheDataset, ConcatDataset, Dataset, MixConcatDataset
 from .mosaicdetection import MosaicDetection
 from .voc import VOCDetection
+from .convert2cartesian import Converter
 
 # from .dais_xml import DAISDataset2
 
