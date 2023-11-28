@@ -11,11 +11,16 @@ http://arxiv.org/abs/1512.02325
 
 import math
 import random
+from typing import Any
 
 import cv2
 import numpy as np
 
 from yolox.utils import xyxy2cxcywh
+
+import torch
+from loguru import logger
+
 
 
 def augment_hsv(img, hgain=5, sgain=30, vgain=30):
@@ -156,6 +161,42 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     padded_img = padded_img.transpose(swap)
     padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
     return padded_img, r
+
+
+class TrainTransformYOLinO:
+    def __init__(self, max_labels=3):
+        self.max_labels = max_labels
+    
+    def __call__(self, image, targets, input_dim):
+        lines = targets.copy()
+        image, r_o = preproc(image, input_dim)
+
+        # Convert to tensors
+        lines = torch.from_numpy(lines)
+        image = torch.tensor(image)
+
+        return image, lines
+
+# NE DELA
+class ValTransformYOLinO:
+    def __init__(self, swap=(2, 0, 1), legacy=False):
+        self.swap = swap
+        self.legacy = legacy
+
+    # assume input is cv2 img for now
+    def __call__(self, img, targets, input_size):
+        img, _ = preproc(img, input_size, self.swap)
+        if self.legacy:
+            img = img[::-1, :, :].copy()
+            img /= 255.0
+            img -= np.array([0.485, 0.456, 0.406]).reshape(3, 1, 1)
+            img /= np.array([0.229, 0.224, 0.225]).reshape(3, 1, 1)
+        
+        # Convert to tensors
+        lines = torch.from_numpy(targets)
+        image = torch.tensor(img)
+
+        return image, lines
 
 
 class TrainTransform:
