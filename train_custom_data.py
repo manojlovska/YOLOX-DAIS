@@ -88,7 +88,25 @@ class Exp(MyExp):
             live.log_param("basic_lr_per_img", self.basic_lr_per_img)
             live.log_param("thresh_lr_scale", self.thresh_lr_scale)
             live.log_param("activation_function", self.act)
+    def get_model(self):
+        from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead
 
+        def init_yolo(M):
+            for m in M.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.eps = 1e-3
+                    m.momentum = 0.03
+
+        if getattr(self, "model", None) is None:
+            in_channels = [256, 512, 1024]
+            backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
+            head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, act=self.act)
+            self.model = YOLOX(backbone=backbone, head=head, head_yolino=None)
+
+        self.model.apply(init_yolo)
+        self.model.head.initialize_biases(1e-2)
+        self.model.train()
+        return self.model
     
     def get_dataset(self, cache: bool = False, cache_type: str = "ram"):
         """
