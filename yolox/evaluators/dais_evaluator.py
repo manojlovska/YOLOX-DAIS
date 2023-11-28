@@ -14,6 +14,7 @@ from tabulate import tabulate
 from tqdm import tqdm
 
 import numpy as np
+from statistics import mean 
 
 import torch
 
@@ -92,6 +93,7 @@ class DAISEvaluator:
         testdev: bool = False,
         per_class_AP: bool = True,
         per_class_AR: bool = True,
+        mag_tape = False,
     ):
         """
         Args:
@@ -104,6 +106,7 @@ class DAISEvaluator:
             per_class_AP: Show per class AP during evalution or not. Default to True.
             per_class_AR: Show per class AR during evalution or not. Default to True.
         """
+        self.mag_tape = mag_tape
         self.dataloader = dataloader
         self.img_size = img_size
         self.confthre = confthre
@@ -136,8 +139,10 @@ class DAISEvaluator:
         model = model.eval()
         if half:
             model = model.half()
+
         ids = []
         data_list = []
+        output_list = []
         output_data = defaultdict()
         progress_bar = tqdm if is_main_process() else iter
 
@@ -155,55 +160,260 @@ class DAISEvaluator:
             model(x)
             model = model_trt
 
-        for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
-            progress_bar(self.dataloader)
-        ):
-            with torch.no_grad():
-                imgs = imgs.type(tensor_type)
+        # YOLinO evaluation
+        if self.mag_tape:
+            for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
+                progress_bar(self.dataloader)
+            ):
+                with torch.no_grad():
+                    imgs = imgs.type(tensor_type)
 
-                # skip the last iters since batchsize might be not enough for batch inference
-                is_time_record = cur_iter < len(self.dataloader) - 1
-                if is_time_record:
-                    start = time.time()
+                    # skip the last iters since batchsize might be not enough for batch inference
+                    is_time_record = cur_iter < len(self.dataloader) - 1
+                    if is_time_record:
+                        start = time.time()
 
-                outputs = model(imgs)
-                if decoder is not None:
-                    outputs = decoder(outputs, dtype=outputs.type())
+                    outputs = model(imgs)
 
-                if is_time_record:
-                    infer_end = time_synchronized()
-                    inference_time += infer_end - start
+                    if is_time_record:
+                        infer_end = time_synchronized()
+                        inference_time += infer_end - start
 
-                outputs = postprocess(
-                    outputs, self.num_classes, self.confthre, self.nmsthre
-                )
-                if is_time_record:
-                    nms_end = time_synchronized()
-                    nms_time += nms_end - infer_end
+                    # TODO: Add postprocessing of the outputs like DBSCAN and NMS later
 
-            data_list_elem, image_wise_data = self.convert_to_coco_format(
-                outputs, info_imgs, ids, return_outputs=True)
-            data_list.extend(data_list_elem)
-            output_data.update(image_wise_data)
+                # TEST
+                output_list.extend(outputs)
 
-        statistics = torch.cuda.FloatTensor([inference_time, nms_time, n_samples])
-        if distributed:
-            # different process/device might have different speed,
-            # to make sure the process will not be stucked, sync func is used here.
+            statistics = torch.cuda.FloatTensor([inference_time, nms_time, n_samples])
+            if distributed:
+                # different process/device might have different speed,
+                # to make sure the process will not be stucked, sync func is used here.
+                synchronize()
+                output_list = gather(output_list, dst=0)
+                output_list = list(itertools.chain(*output_list))
+                torch.distributed.reduce(statistics, dst=0)
+
+            eval_results = self.evaluate_yolino_prediction(output_list, statistics)
             synchronize()
-            data_list = gather(data_list, dst=0)
-            output_data = gather(output_data, dst=0)
-            data_list = list(itertools.chain(*data_list))
-            output_data = dict(ChainMap(*output_data))
-            torch.distributed.reduce(statistics, dst=0)
 
-        eval_results = self.evaluate_prediction(data_list, statistics)
-        synchronize()
+            if return_outputs:
+                return eval_results, output_list
+            return eval_results
 
-        if return_outputs:
-            return eval_results, output_data
-        return eval_results
+                    
+        # YOLOX evaluation
+        else:
+            for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
+                progress_bar(self.dataloader)
+            ):
+                with torch.no_grad():
+                    imgs = imgs.type(tensor_type)
 
+                    # skip the last iters since batchsize might be not enough for batch inference
+                    is_time_record = cur_iter < len(self.dataloader) - 1
+                    if is_time_record:
+                        start = time.time()
+
+                    outputs = model(imgs)
+                    if decoder is not None:
+                        outputs = decoder(outputs, dtype=outputs.type())
+
+                    if is_time_record:
+                        infer_end = time_synchronized()
+                        inference_time += infer_end - start
+
+                    outputs = postprocess(
+                        outputs, self.num_classes, self.confthre, self.nmsthre
+                    )
+                    if is_time_record:
+                        nms_end = time_synchronized()
+                        nms_time += nms_end - infer_end
+
+                data_list_elem, image_wise_data = self.convert_to_coco_format(
+                    outputs, info_imgs, ids, return_outputs=True)
+                data_list.extend(data_list_elem)
+                output_data.update(image_wise_data)
+
+            statistics = torch.cuda.FloatTensor([inference_time, nms_time, n_samples])
+            if distributed:
+                # different process/device might have different speed,
+                # to make sure the process will not be stucked, sync func is used here.
+                synchronize()
+                data_list = gather(data_list, dst=0)
+                output_data = gather(output_data, dst=0)
+                data_list = list(itertools.chain(*data_list))
+                output_data = dict(ChainMap(*output_data))
+                torch.distributed.reduce(statistics, dst=0)
+
+            eval_results = self.evaluate_prediction(data_list, statistics)
+            synchronize()
+
+            if return_outputs:
+                return eval_results, output_data
+            return eval_results
+
+    def evaluate_yolino_prediction(self, output_list, statistics, t_conf=0.5, t_cell=0.1):
+        if not is_main_process():
+            return 0, 0, None
+
+        logger.info("Evaluate in main process...")
+
+        inference_time = statistics[0].item()
+        nms_time = statistics[1].item()
+        n_samples = statistics[2].item()
+
+        a_infer_time = 1000 * inference_time / (n_samples * self.dataloader.batch_size)
+        a_nms_time = 1000 * nms_time / (n_samples * self.dataloader.batch_size)
+
+        time_info = ", ".join(
+            [
+                "Average {} time: {:.2f} ms".format(k, v)
+                for k, v in zip(
+                    ["forward", "NMS", "inference"],
+                    [a_infer_time, a_nms_time, (a_infer_time + a_nms_time)],
+                )
+            ]
+        )
+
+        info = time_info + "\n"
+
+        batch_size = self.dataloader.batch_size
+        annotations = self.dataloader.dataset.annotations
+
+        # Extract the ground truths from the annotations
+        # print(ground_truth[0] for ground_truth in annotations[:2])
+        ground_truths = [torch.from_numpy(ground_truth[0]).permute(1, 2, 0) for ground_truth in annotations] # Mozda kje treba da dodades edna nula kaj permute i drugite indeksi da gi zgolemis za 1
+        
+        metrics_yolino = {}
+        if len(ground_truths) == len(output_list):
+            precision_list = []
+            recall_list = []
+            f1_score_list = []
+
+            precision_cell_list = []
+            recall_cell_list = []
+            f1_score_cell_list = []
+
+            for i in range(len(output_list)):
+                prediction = output_list[i]
+                # print(f"Prediction shape: {prediction.shape}")
+                ground_truth = ground_truths[i]
+                # print(f"Ground truth shape: {ground_truth.shape}")
+                
+                # Reshape ground truth as prediction
+                ground_truth = ground_truth.reshape_as(prediction)
+                # print(f"Ground truth shape: {ground_truth.shape}")
+
+                """ CHECK ONLY DISTANCES BETWEEN START AND END POINTS OF GT AND PREDICTION """
+                coords_gt = ground_truth[:, :, :4].float().to("cpu")
+                confs_gt = ground_truth[:, :, -1].float().to("cpu")
+
+                coords_pred = prediction[:, :, :4].float().to("cpu")
+                confs_pred = prediction[:, :, -1].float().sigmoid().to("cpu")
+
+                num_ground_truths = (confs_gt > 0).sum(dim=0)
+                # print(f"Number of ground truths: {num_ground_truths}")
+
+                num_predictions = (confs_pred > t_conf).sum(dim=0)
+                # print(f"Number of predictions: {num_predictions}")
+
+                # HIGH LEVEL METRICS
+                # True positives
+                true_positives = torch.logical_and(confs_gt > 0, confs_pred > t_conf).sum(dim=0)
+                # print(f"True positives: {true_positives}")
+
+                # False positives
+                false_positives = torch.logical_and(confs_gt < 1, confs_pred > t_conf).sum(dim=0)
+                # print(f"False positives: {false_positives}")
+
+                # True negatives
+                true_negatives = torch.logical_and(confs_gt < 1, confs_pred < t_conf).sum(dim=0)
+                # print(f"True negatives: {true_negatives}")
+
+                # False negatives
+                false_negatives = torch.logical_and(confs_gt > 0, confs_pred < t_conf).sum(dim=0)
+                # print(f"False negatives: {false_negatives}")
+
+                # Precision
+                precision = true_positives / (num_predictions + 1e-15)
+                # print(f"Precision: {precision.item()}")
+
+                # Recall
+                recall = true_positives / (num_ground_truths + 1e-15)
+                # print(f"Recall: {recall}")
+
+                # F1
+                f1_score = 2 * (precision * recall) / (precision + recall + 1e-15)
+                # print(f"F1 score: {f1_score}")
+
+                # Append the lists for every image
+                precision_list.append(precision.item())
+                recall_list.append(recall.item())
+                f1_score_list.append(f1_score.item())
+
+                # CELL LEVEL METRICS
+                calculate_distances = torch.logical_and(confs_gt > 0, confs_pred > t_conf)
+                check_distances = torch.logical_and(torch.linalg.norm(coords_gt[:, :, :2] - coords_pred[:, :, :2], dim=-1) < t_cell, 
+                                                    torch.linalg.norm(coords_gt[:, :, 2:] - coords_pred[:, :, 2:], dim=-1) < t_cell)
+
+                true_positives_cell = torch.logical_and(calculate_distances, check_distances).sum(dim=0)
+
+                # print(f"Cell based true positives: {true_positives_cell}")
+
+                # Cell based precision
+                precision_cell = true_positives_cell / (num_predictions + 1e-15)
+                # print(f"Cell based precision: {precision_cell}")
+
+                # Cell based recall
+                recall_cell = true_positives_cell / (num_ground_truths + 1e-15)
+                # print(f"Cell based recall: {recall_cell}")
+
+                # Cell based F1 score
+                f1_score_cell = 2 * (precision_cell * recall_cell) / (precision_cell + recall_cell + 1e-15)
+
+                # Append the lists for every image
+                precision_cell_list.append(precision_cell.item())
+                recall_cell_list.append(recall_cell.item())
+                f1_score_cell_list.append(f1_score_cell.item())
+
+            metrics_yolino.update({"precision": mean(precision_list),
+                                  "recall": mean(recall_list),
+                                  "f1_score": mean(f1_score_list),
+                                  
+                                  "cell_based_precision": mean(precision_cell_list),
+                                  "cell_based_recall": mean(recall_cell_list),
+                                  "cell_based_f1_score": mean(f1_score_cell_list)})
+            
+        return metrics_yolino, info
+    
+    # Integrate afterwards
+    def interpolate_line_segment(self, point1, point2):
+        # Calculate the number of steps based on the distance
+        distance = np.linalg.norm(np.array(point2) - np.array(point1))
+        print(distance)
+        
+        min_points = 2
+        density_factor = 10.0
+
+        # Generate interpolated points
+        num_points = max(int(np.ceil(distance * density_factor)), min_points) + 1
+        print(num_points)
+
+        # (x2 > x1 and y2 > y1) or (x2 > x1 and y2 < y1)
+        if (point2[0] > point1[0] and point2[1] > point1[1]) or (point2[0] > point1[0] and point2[1] < point1[1]):
+            x_values = np.linspace(point1[0], point2[0], num_points)
+            y_values = np.linspace(point1[1], point2[1], num_points)
+            interpolated_points = list(zip(x_values, y_values))
+
+        # (x2 < x1 and y2 < y1) or (x2 < x1 and y2 > y1)
+        elif (point2[0] < point1[0] and point2[1] <  point1[1]) or (point2[0] < point1[0] and point2[1] > point1[1]):
+            x_values = np.linspace(point2[0], point1[0], num_points)
+            y_values = np.linspace(point2[1], point1[1], num_points)
+            interpolated_points = list(zip(x_values, y_values))
+            interpolated_points.reverse()
+
+        return interpolated_points
+    
     def convert_to_coco_format(self, outputs, info_imgs, ids, return_outputs=False):
         data_list = []
         image_wise_data = defaultdict(dict)
