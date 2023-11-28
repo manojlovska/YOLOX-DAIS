@@ -242,7 +242,7 @@ class Trainer:
             )
             loss_meter = self.meter.get_filtered_meter("loss")
             loss_str = ", ".join(
-                ["{}: {:.1f}".format(k, v.latest) for k, v in loss_meter.items()]
+                ["{}: {:.1f}".format(k, v.latest.item()) for k, v in loss_meter.items()]
             )
 
             time_meter = self.meter.get_filtered_meter("time")
@@ -325,38 +325,88 @@ class Trainer:
         return model
 
     def evaluate_and_save_model(self):
-        if self.use_model_ema:
-            evalmodel = self.ema_model.ema
+        # Evaluate YOLinO
+        if self.exp.mag_tape:
+            if self.use_model_ema:
+                evalmodel = self.ema_model.ema
+            else:
+                evalmodel = self.model
+                if is_parallel(evalmodel):
+                    evalmodel = evalmodel.module
+
+            with adjust_status(evalmodel, training=False):
+                (eval_metrics_dict, summary), predictions = self.exp.eval(
+                    evalmodel, self.evaluator, self.is_distributed, return_outputs=True
+                )
+            
+            # F1 score is the global F1 score, not the cell based
+            update_best_ckpt = eval_metrics_dict["f1_score"] > self.best_ap
+            self.best_ap = max(self.best_ap, eval_metrics_dict["f1_score"])
+
+            if self.rank == 0:
+                if self.args.logger == "tensorboard":
+                    self.tblogger.add_scalar("val/precision", eval_metrics_dict["precision"], self.epoch + 1)
+                    self.tblogger.add_scalar("val/recall", eval_metrics_dict["recall"], self.epoch + 1)
+                    self.tblogger.add_scalar("val/f1_score", eval_metrics_dict["f1_score"], self.epoch + 1)
+
+                    # Cell based evaluation metrics
+                    self.tblogger.add_scalar("val/cell_based_precision", eval_metrics_dict["cell_based_precision"], self.epoch + 1)
+                    self.tblogger.add_scalar("val/cell_based_recall", eval_metrics_dict["cell_based_recall"], self.epoch + 1)
+                    self.tblogger.add_scalar("val/cell_based_f1_score", eval_metrics_dict["cell_based_f1_score"], self.epoch + 1)
+
+                if self.args.logger == "wandb":
+                    self.wandb_logger.log_metrics({
+                        "val/precision": eval_metrics_dict["precision"],
+                        "val/recall": eval_metrics_dict["recall"],
+                        "val/f1_score": eval_metrics_dict["f1_score"],
+                        "val/cell_based_precision": eval_metrics_dict["cell_based_precision"],
+                        "val/cell_based_recall": eval_metrics_dict["cell_based_recall"],
+                        "val/cell_based_f1_score": eval_metrics_dict["cell_based_f1_score"],
+
+                        "train/epoch": self.epoch + 1,
+                    })
+                    # self.wandb_logger.log_images(predictions)
+                logger.info("\n" + summary)
+            synchronize()
+
+            self.save_ckpt("last_epoch", update_best_ckpt, ap=eval_metrics_dict["f1_score"])
+            if self.save_history_ckpt:
+                self.save_ckpt(f"epoch_{self.epoch + 1}", ap=eval_metrics_dict["f1_score"])
+
+        # Evaluate YOLOX
         else:
-            evalmodel = self.model
-            if is_parallel(evalmodel):
-                evalmodel = evalmodel.module
+            if self.use_model_ema:
+                evalmodel = self.ema_model.ema
+            else:
+                evalmodel = self.model
+                if is_parallel(evalmodel):
+                    evalmodel = evalmodel.module
 
-        with adjust_status(evalmodel, training=False):
-            (ap50_95, ap50, summary), predictions = self.exp.eval(
-                evalmodel, self.evaluator, self.is_distributed, return_outputs=True
-            )
+            with adjust_status(evalmodel, training=False):
+                (ap50_95, ap50, summary), predictions = self.exp.eval(
+                    evalmodel, self.evaluator, self.is_distributed, return_outputs=True
+                )
 
-        update_best_ckpt = ap50_95 > self.best_ap
-        self.best_ap = max(self.best_ap, ap50_95)
+            update_best_ckpt = ap50_95 > self.best_ap
+            self.best_ap = max(self.best_ap, ap50_95)
 
-        if self.rank == 0:
-            if self.args.logger == "tensorboard":
-                self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
-                self.tblogger.add_scalar("val/COCOAP50_95", ap50_95, self.epoch + 1)
-            if self.args.logger == "wandb":
-                self.wandb_logger.log_metrics({
-                    "val/COCOAP50": ap50,
-                    "val/COCOAP50_95": ap50_95,
-                    "train/epoch": self.epoch + 1,
-                })
-                self.wandb_logger.log_images(predictions)
-            logger.info("\n" + summary)
-        synchronize()
+            if self.rank == 0:
+                if self.args.logger == "tensorboard":
+                    self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
+                    self.tblogger.add_scalar("val/COCOAP50_95", ap50_95, self.epoch + 1)
+                if self.args.logger == "wandb":
+                    self.wandb_logger.log_metrics({
+                        "val/COCOAP50": ap50,
+                        "val/COCOAP50_95": ap50_95,
+                        "train/epoch": self.epoch + 1,
+                    })
+                    self.wandb_logger.log_images(predictions)
+                logger.info("\n" + summary)
+            synchronize()
 
-        self.save_ckpt("last_epoch", update_best_ckpt, ap=ap50_95)
-        if self.save_history_ckpt:
-            self.save_ckpt(f"epoch_{self.epoch + 1}", ap=ap50_95)
+            self.save_ckpt("last_epoch", update_best_ckpt, ap=ap50_95)
+            if self.save_history_ckpt:
+                self.save_ckpt(f"epoch_{self.epoch + 1}", ap=ap50_95)
 
     def save_ckpt(self, ckpt_name, update_best_ckpt=False, ap=None):
         if self.rank == 0:
