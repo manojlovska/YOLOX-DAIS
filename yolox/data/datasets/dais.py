@@ -49,9 +49,7 @@ class DAISDataset(CacheDataset):
             data_dir = os.path.join(get_yolox_datadir(), "DAIS-COCO")
         self.data_dir = data_dir
         self.json_file = json_file
-        self.mag_tape = mag_tape
-
-        self.max_num_points = self.get_max_num_points_from_xml("annotations.xml")
+        self.mag_tape = mag_tape        
         self.square_size = 32
         self.converter = Converter(width=img_size[0], height=img_size[1], square_size=self.square_size)
 
@@ -67,12 +65,7 @@ class DAISDataset(CacheDataset):
         self.annotations = self._load_mag_tape_annotations() if self.mag_tape else self._load_coco_annotations()
 
         path_filename = [os.path.join(name, anno[3]) for anno in self.annotations]
-
-        # print("IDs: ", self.ids)
-        # print("Num_imgs: ", self.num_imgs)
-        # print("Class ids: ", self.class_ids)
-        # print("Cats: ", self.cats)
-        # print("Classes: ", self._classes)
+        
         
         super().__init__(
             input_dimension=img_size,
@@ -146,16 +139,14 @@ class DAISDataset(CacheDataset):
     
     def load_mag_tape_anno_from_ids(self, id_):
         im_ann = self.coco.loadImgs(id_)[0]
-        width = im_ann["width"]
-        height = im_ann["height"]
+        original_width = im_ann["width"]
+        original_height = im_ann["height"]
         anno_ids = self.coco.getAnnIds(imgIds=[int(id_)], iscrowd=False)
         annotations = self.coco.loadAnns(anno_ids)
 
         # Split the annotations to bboxes and magnetic tape
         mag_tape_annotations = [annotations[i] for i in range(len(annotations)) if "line" in annotations[i]]
 
-        # Ratio
-        r = min(self.img_size[0] / height, self.img_size[1] / width)
 
         # Only polylines
         lines = []
@@ -163,13 +154,25 @@ class DAISDataset(CacheDataset):
             points = line["line"]
             lines.append(points)
 
+
+        x_scale = self.img_size[0] / original_width
+        y_scale = self.img_size[1] / original_height
+
+
+        # convert polylines to float and optionally scale them
+        for polyline in lines:
+            for line in polyline:
+                line[0] = float(line[0]) * x_scale
+                line[1] = float(line[1]) * y_scale
+
         cartesian_lines = self.converter.to_cartesian(lines)
-        cartesian_lines = cartesian_lines.transpose(2, 0, 1) # Now the annotations are in shape (5, 20, 20) when convertng to tensor add batch size
         
+        cartesian_lines = np.moveaxis(cartesian_lines, -1, 0).T # Now the annotations are in shape (5, 20, 20) when convertng to tensor add batch size
+
         cartesian_lines = np.where(np.isnan(cartesian_lines), np.zeros_like(cartesian_lines), cartesian_lines)
 
-        img_info = (height, width)
-        resized_info = (int(height * r), int(width * r))
+        img_info = (original_height, original_width)
+        resized_info = (int(self.img_size[0]), int(self.img_size[1]))
 
         file_name = (
             im_ann["file_name"]
@@ -178,26 +181,8 @@ class DAISDataset(CacheDataset):
         )
 
         logger.info("Image {}".format(file_name))
-        return (cartesian_lines, img_info, resized_info, file_name)
-    
-    def get_max_num_points_from_xml(self, annotations_xml):
-        "annotations_xml: name of the annotation file containing train and valid images"
-        annotations_xml_path = os.path.join(self.data_dir, "annotations_xml", annotations_xml)
-
-        tree = ET.parse(annotations_xml_path)
-        root = tree.getroot()
-        all_images = root.findall("image")
-
-        max_num_points = 0
-        for image in all_images:
-            for poly in image.findall("polyline"):
-                points_string = poly.get("points").split(";")
-                points = [list(map(float, coordinate_str.split(','))) for coordinate_str in points_string]
-
-                if len(points) > max_num_points:
-                    max_num_points = len(points)
         
-        return max_num_points
+        return (cartesian_lines, img_info, resized_info, file_name)
     
     def load_anno(self, index):
         return self.annotations[index][0]
