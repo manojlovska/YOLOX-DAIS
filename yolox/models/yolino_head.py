@@ -70,14 +70,14 @@ class YOLinOHead(nn.Module):
         tensor = tensor.reshape(batch_size, -1, self.num_predictors_per_cell, 5)
         return tensor
 
-    def get_losses(self, outputs, target_tensors, p=1/3):
+    def get_losses(self, outputs, target_tensors, p=0.5):
         target_tensors = self.reshape_tensor(target_tensors)
 
         # shapes: [batch_size, num_cells, num_predictors, coordinates]
         coords_gt = target_tensors[:, :, :, :4].float()
         confs_gt = target_tensors[:, :, :, -1].float()
 
-        coords_pred = outputs[:, :, :, :4].float()
+        coords_pred = outputs[:, :, :, :4].float().sigmoid()
         confs_pred = outputs[:, :, :, -1].float().sigmoid()
 
         # shape: [1] => 1: average of all batches
@@ -91,7 +91,15 @@ class YOLinOHead(nn.Module):
         # sum for all cells, mean for all batches, only include cells where in the ground truth there are no line segments i.e. conf_gt < 1 (penalize the error where the network is confident there is a gt_line when there is not)
         L_noresp = torch.where(confs_gt < 1, (confs_pred-torch.zeros_like(confs_pred))**2, torch.zeros_like(confs_pred)).sum(dim=1).mean(dim=0)
 
-        total_loss = p * (L_loc + L_resp + L_noresp)
+        # For normalization of the losses
+        num_cells = target_tensors.shape[1]
+        num_gt = (confs_gt > 0).squeeze(0).sum()
+
+        L_loc /= num_cells
+        L_resp /= num_gt
+        L_noresp /= (num_cells - num_gt)
+
+        total_loss = p * L_loc + (1-p)/2 * (L_resp + L_noresp)
 
         return (L_loc, L_resp, L_noresp, total_loss)
     
@@ -103,7 +111,7 @@ class YOLinOHead(nn.Module):
             return self.get_losses(x, target_tensors) # TODO
         
         else:
-            return x # torch.Tensor([batch_size, num_cells, num_predictors, variables (coordinates + confidence)]) => torch.Tensor([batch_size, 400, 1, 5]) for dark5
+            return x.sigmoid() # torch.Tensor([batch_size, num_cells, num_predictors, variables (coordinates + confidence)]) => torch.Tensor([batch_size, 400, 1, 5]) for dark5
         
 
 
