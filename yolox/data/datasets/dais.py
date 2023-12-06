@@ -167,7 +167,9 @@ class DAISDataset(CacheDataset):
 
         cartesian_lines = self.converter.to_cartesian(lines)
         
-        cartesian_lines = np.moveaxis(cartesian_lines, -1, 0).T # Now the annotations are in shape (5, 20, 20) when convertng to tensor add batch size
+        cartesian_lines = np.moveaxis(cartesian_lines, -1, 0)
+        
+        cartesian_lines = np.moveaxis(cartesian_lines, -1, 1) # Now the annotations are in shape (5, 20, 20) when convertng to tensor add batch size
 
         cartesian_lines = np.where(np.isnan(cartesian_lines), np.zeros_like(cartesian_lines), cartesian_lines)
 
