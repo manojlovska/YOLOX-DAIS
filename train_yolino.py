@@ -216,7 +216,7 @@ class Exp(MyExp):
         return train_loader
     
     def get_eval_dataset(self, **kwargs):
-        from yolox.data import DAISDataset, ValTransform
+        from yolox.data import DAISDataset, ValTransformYOLinO
         testdev = kwargs.get("testdev", False)
         legacy = kwargs.get("legacy", False)
 
@@ -226,7 +226,7 @@ class Exp(MyExp):
             name="valid" if not testdev else "test",
             img_size=self.test_size,
             mag_tape=self.mag_tape,
-            preproc=ValTransform(),
+            preproc=ValTransformYOLinO(),
         )
 
     def get_eval_loader(self, batch_size, is_distributed, **kwargs):
@@ -265,3 +265,6 @@ class Exp(MyExp):
             mag_tape=self.mag_tape,
         )
         return evaluator
+    
+    def eval(self, model, evaluator, is_distributed, half=False, return_outputs=False):
+        return evaluator.evaluate(model, is_distributed, half, return_outputs=return_outputs)
