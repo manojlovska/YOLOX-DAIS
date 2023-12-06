@@ -216,7 +216,7 @@ class WandbLogger(object):
             self.id_to_class = {
                 cls['id']: cls['name'] for cls in self.cats
             }
-            self._log_validation_set(val_dataset)
+            # self._log_validation_set(val_dataset)
 
     @property
     def run(self):
