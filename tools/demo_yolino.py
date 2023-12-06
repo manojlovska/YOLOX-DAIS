@@ -164,10 +164,9 @@ class Predictor(object):
             return img
         
         output = output.cpu()
-        # import pdb; pdb.set_trace()
+        
 
-        output = output.reshape(20, 20, 5)
-        # import pdb; pdb.set_trace()
+        output = output.reshape(20, 20, 5).moveaxis(1,0)
         
         image = Visualizer(image_name, self.test_size[0], self.test_size[1], 32)
         polylines = image.get_polylines("/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO/annotations_xml/annotations.xml")
@@ -191,13 +190,13 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         result_image = predictor.visual(outputs[0], image_name, img_info, predictor.confthre)
         if save_result:
             save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
+                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time), os.path.basename(os.path.dirname(image_name))
             )
             os.makedirs(save_folder, exist_ok=True)
             save_file_name = os.path.join(save_folder, os.path.basename(image_name))
-            logger.info("Saving detection result in {}".format(save_file_name))
-            import pdb; pdb.set_trace()
-            cv2.imwrite(save_file_name, result_image)
+            logger.info("Saving detection result in {}".format(save_folder))
+            # import pdb; pdb.set_trace()
+            # cv2.imwrite(save_file_name, result_image)
             result_image.save_image(save_folder, os.path.basename(image_name))
         ch = cv2.waitKey(0)
         if ch == 27 or ch == ord("q") or ch == ord("Q"):

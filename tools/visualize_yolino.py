@@ -21,7 +21,7 @@ class Visualizer:
     # get and scale all polylines for an image
     def get_polylines(self, annotation_path):
         image_name = os.path.basename(self.image_path)
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         path_expression = "//image[contains(@name,'" + image_name + "')]"
         annotation_file = etree.parse(annotation_path)
@@ -75,7 +75,7 @@ class Visualizer:
         if not os.path.exists(out_path):
             os.makedirs(out_path)
 
-        self.im.save(out_path + name + ".png")
+        self.im.save(os.path.join(out_path,name))
 
     def show_image(self):
         self.im.show()
@@ -83,7 +83,7 @@ class Visualizer:
     def draw_cartesian_predictors(self, squares, color="green"):
         for i in range(0, self.x_squares):
             for j in range(0, self.y_squares):
-                if squares[i][j][4] < 0.5:
+                if squares[i][j][4] < 0.3:
                     continue
 
                 # coordinates of the top left corner of each square
@@ -109,7 +109,7 @@ class Visualizer:
     def draw_cartesian_intersections(self, squares, color="yellow"):
         for i in range(0, self.x_squares):
             for j in range(0, self.y_squares):
-                if squares[i][j][4] < 0.5:
+                if squares[i][j][4] < 0.3:
                     continue
 
                 # coordinates of the top left corner of each square
