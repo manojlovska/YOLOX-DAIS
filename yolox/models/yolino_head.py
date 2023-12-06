@@ -92,12 +92,12 @@ class YOLinOHead(nn.Module):
         L_noresp = torch.where(confs_gt < 1, (confs_pred-torch.zeros_like(confs_pred))**2, torch.zeros_like(confs_pred)).sum(dim=1).mean(dim=0)
 
         # For normalization of the losses
-        num_cells = target_tensors.shape[1]
-        num_gt = (confs_gt > 0).squeeze(0).sum()
+        # num_cells = target_tensors.shape[1]
+        # num_gt = (confs_gt > 0).squeeze(0).sum()
 
-        L_loc /= num_cells
-        L_resp /= num_gt
-        L_noresp /= (num_cells - num_gt)
+        # L_loc /= num_cells
+        # L_resp /= num_gt
+        # L_noresp /= (num_cells - num_gt)
 
         total_loss = p * L_loc + (1-p)/2 * (L_resp + L_noresp)
 
