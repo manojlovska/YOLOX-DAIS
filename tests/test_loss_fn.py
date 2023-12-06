@@ -4,6 +4,22 @@ from yolox.models import YOLinOHead
 from yolox.models import YOLOXHead, YOLOPAFPN, YOLOX
 import numpy as np
 
+def test_visualize_batches():
+    from train_yolino import Exp
+    import matplotlib.pyplot as plt
+    from torchvision.utils import make_grid
+
+    exp = Exp()
+    val_dataset = exp.get_eval_dataset()
+    val_dataloader = exp.get_eval_loader(batch_size=8, is_distributed=False)
+
+    for cur_iter, (imgs, _, info_imgs, ids) in enumerate(val_dataloader):
+        fig, ax = plt.subplots(figsize=(30, 30))
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.imshow(make_grid(imgs, nrow=8).permute(1, 2, 0))
+    
+    assert len(val_dataloader) > 0
+
 def test_loss_fn():
     # backbone = YOLOPAFPN(depth, width, in_channels=in_channels, act=act)
     head_yolino = YOLinOHead(in_channels=512, num_predictors_per_cell=1, conf=1) # Only the last layer of features
@@ -31,8 +47,8 @@ def test_loss_fn_2():
     gt = torch.from_numpy(gt)
 
     L_loc, L_resp, L_noresp, total_loss = head_yolino.get_losses(outputs, gt)
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     assert L_loc > 0.0
 
 def test_loss_fn_3():
@@ -82,6 +98,13 @@ def test_loss_fn_5():
 
     L_loc, L_resp, L_noresp, total_loss = head_yolino.get_losses(outputs, gt)
     assert total_loss > 0.0
+
+
+
+
+
+
+
 
 # def test_evaluation():
 #     from yolox.evaluators.dais_evaluator import DAISEvaluator
