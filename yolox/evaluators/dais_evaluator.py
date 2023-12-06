@@ -283,7 +283,7 @@ class DAISEvaluator:
         # Extract the ground truths from the annotations
         # print(ground_truth[0] for ground_truth in annotations[:2])
         ground_truths = [torch.from_numpy(ground_truth[0]).permute(1, 2, 0) for ground_truth in annotations] # Mozda kje treba da dodades edna nula kaj permute i drugite indeksi da gi zgolemis za 1
-        
+
         metrics_yolino = {}
         if len(ground_truths) == len(output_list):
             precision_list = []
@@ -299,6 +299,8 @@ class DAISEvaluator:
                 # print(f"Prediction shape: {prediction.shape}")
                 ground_truth = ground_truths[i]
                 # print(f"Ground truth shape: {ground_truth.shape}")
+
+                # print(f"Ground truth: {ground_truth}, prediction: {prediction}")
                 
                 # Reshape ground truth as prediction
                 ground_truth = ground_truth.reshape_as(prediction)
@@ -309,7 +311,7 @@ class DAISEvaluator:
                 confs_gt = ground_truth[:, :, -1].float().to("cpu")
 
                 coords_pred = prediction[:, :, :4].float().to("cpu")
-                confs_pred = prediction[:, :, -1].float().sigmoid().to("cpu")
+                confs_pred = prediction[:, :, -1].float().to("cpu")
 
                 num_ground_truths = (confs_gt > 0).sum(dim=0)
                 # print(f"Number of ground truths: {num_ground_truths}")
