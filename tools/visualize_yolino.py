@@ -80,10 +80,10 @@ class Visualizer:
     def show_image(self):
         self.im.show()
 
-    def draw_cartesian_predictors(self, squares, color="green"):
+    def draw_cartesian_predictors(self, squares, thresh=0.5, color="green"):
         for i in range(0, self.x_squares):
             for j in range(0, self.y_squares):
-                if squares[i][j][4] < 0.5:
+                if squares[i][j][4] < thresh:
                     continue
 
                 # coordinates of the top left corner of each square
@@ -106,10 +106,10 @@ class Visualizer:
 
                 self.draw.line([(x1, y1), (x2, y2)], width=4, fill=color)
 
-    def draw_cartesian_intersections(self, squares, color="yellow"):
+    def draw_cartesian_intersections(self, squares, thresh=0.5, color="yellow"):
         for i in range(0, self.x_squares):
             for j in range(0, self.y_squares):
-                if squares[i][j][4] < 0.5:
+                if squares[i][j][4] < thresh:
                     continue
 
                 # coordinates of the top left corner of each square
