@@ -157,7 +157,7 @@ class Predictor(object):
             logger.info("Infer time: {:.4f}s".format(time.time() - t0))
         return outputs, img_info
 
-    def visual(self, output, image_name, img_info, cls_conf=0.35):
+    def visual(self, output, image_name, img_info, cls_conf=0.5):
         ratio = img_info["ratio"]
         img = img_info["raw_img"]
         if output is None:
@@ -171,9 +171,9 @@ class Predictor(object):
         image = Visualizer(image_name, self.test_size[0], self.test_size[1], 32)
         polylines = image.get_polylines("/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO/annotations_xml/annotations.xml")
         image.draw_grid()
-        image.draw_cartesian_predictors(output)
+        image.draw_cartesian_predictors(output, cls_conf)
         image.draw_true_polylines(polylines)
-        image.draw_cartesian_intersections(output)
+        image.draw_cartesian_intersections(output, cls_conf)
         image.show_image()
 
         return image
