@@ -21,7 +21,7 @@ from yolox.models import YOLinOHead
 from yolox.models import YOLOXHead, YOLOPAFPN, YOLOX
 import xml.etree.ElementTree as ET
 from yolox.evaluators.dais_evaluator import DAISEvaluator
-
+import cv2
 
 """ INTERPOLATION AND SAMPLING FOR NUMPY ARRAYS """
 
@@ -162,7 +162,7 @@ print(len(sampled_points))
 # recall_cell = (true_positives_cell / num_ground_truths).mean(dim=0)
 # print(f"Cell based recall: {recall_cell}")
 
-
+###############################################################################################################################################################3
 
 data_directory = '/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO'
 batch_size = 8
@@ -199,26 +199,58 @@ dataloader_kwargs = {
     "sampler": sampler,
 }
 dataloader_kwargs["batch_size"] = batch_size
-val_loader = torch.utils.data.DataLoader(valdataset, **dataloader_kwargs)
-print(val_loader.batch_size)
 
-evaluator = DAISEvaluator(
-    dataloader=val_loader,
-    img_size=valdataset.img_size,
-    confthre=test_conf,
-    nmsthre=nmsthre,   
-    num_classes=num_classes,
-    testdev=testdev,
-    mag_tape=True,
-)
+# val_loader = torch.utils.data.DataLoader(valdataset, **dataloader_kwargs)
+# print(val_loader.batch_size)
 
-evaluated_outputs = evaluator.evaluate(model=model, distributed=False, half=False, trt_file=None, decoder=None, test_size=valdataset.img_size, return_outputs=False)
+# evaluator = DAISEvaluator(
+#     dataloader=val_loader,
+#     img_size=valdataset.img_size,
+#     confthre=test_conf,
+#     nmsthre=nmsthre,   
+#     num_classes=num_classes,
+#     testdev=testdev,
+#     mag_tape=True,
+# )
 
-print(evaluated_outputs)
-print(len(evaluated_outputs))
-print(evaluated_outputs[0].shape)
+# evaluated_outputs = evaluator.evaluate(model=model, distributed=False, half=False, trt_file=None, decoder=None, test_size=valdataset.img_size, return_outputs=False)
 
+# print(evaluated_outputs)
+# print(len(evaluated_outputs))
+# print(evaluated_outputs[0].shape)
+test_size = (640, 640)
+device = "cpu"
 
+def inference(img):
+    img_info = {"id": 0}
+    if isinstance(img, str):
+        img_info["file_name"] = os.path.basename(img)
+        img = cv2.imread(img)
+    else:
+        img_info["file_name"] = None
+
+    height, width = img.shape[:2]
+    img_info["height"] = height
+    img_info["width"] = width
+    img_info["raw_img"] = img
+
+    ratio = min(test_size[0] / img.shape[0], test_size[1] / img.shape[1])
+    img_info["ratio"] = ratio
+
+    img, _ = self.preproc(img, None, test_size)
+    img = torch.from_numpy(img).unsqueeze(0)
+    img = img.float()
+    if device == "gpu":
+        img = img.cuda()
+        if self.fp16:
+            img = img.half()  # to FP16
+
+    with torch.no_grad():
+        t0 = time.time()
+        outputs = model(img)
+
+        logger.info("Infer time: {:.4f}s".format(time.time() - t0))
+    return outputs, img_info
 
 
 

@@ -83,7 +83,7 @@ class Visualizer:
     def draw_cartesian_predictors(self, squares, color="green"):
         for i in range(0, self.x_squares):
             for j in range(0, self.y_squares):
-                if squares[i][j][4] < 0.3:
+                if squares[i][j][4] < 0.5:
                     continue
 
                 # coordinates of the top left corner of each square
@@ -109,7 +109,7 @@ class Visualizer:
     def draw_cartesian_intersections(self, squares, color="yellow"):
         for i in range(0, self.x_squares):
             for j in range(0, self.y_squares):
-                if squares[i][j][4] < 0.3:
+                if squares[i][j][4] < 0.5:
                     continue
 
                 # coordinates of the top left corner of each square

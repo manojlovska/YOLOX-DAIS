@@ -166,7 +166,7 @@ class Predictor(object):
         output = output.cpu()
         
 
-        output = output.reshape(20, 20, 5).moveaxis(1,0)
+        output = output.reshape(20, 20, 5) # .moveaxis(1,0)
         
         image = Visualizer(image_name, self.test_size[0], self.test_size[1], 32)
         polylines = image.get_polylines("/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO/annotations_xml/annotations.xml")
