@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.distributed as dist
 from loguru import logger
+import wandb
 
 from yolox.exp import Exp as MyExp
 
@@ -19,16 +20,16 @@ import random
 from dvclive import Live
 # import wandb 
 
-# wandb.init()
+wandb.init()
 
 class Exp(MyExp):
     def __init__(self):
         super(Exp, self).__init__()
         # --------------  training config --------------------- #
-        self.warmup_epochs = 5
-        self.max_epoch = 200
+        self.warmup_epochs = 1
+        self.max_epoch = 3
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 64.0
+        self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 15
         self.min_lr_ratio = 0.05

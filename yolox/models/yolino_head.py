@@ -1,6 +1,7 @@
 import math
 from loguru import logger
 import numpy as np
+import wandb
 
 import torch
 import torch.nn as nn
@@ -98,6 +99,7 @@ class YOLinOHead(nn.Module):
         # L_loc /= num_cells
         # L_resp /= num_gt
         # L_noresp /= (num_cells - num_gt)
+        p = wandb.config.loss_param
 
         total_loss = p * L_loc + (1-p)/2 * (L_resp + L_noresp)
 
