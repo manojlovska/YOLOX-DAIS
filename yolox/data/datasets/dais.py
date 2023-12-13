@@ -19,6 +19,7 @@ from ..dataloading import get_yolox_datadir
 from .datasets_wrapper import CacheDataset, cache_read_img
 from .dais_classes import DAIS_CLASSES
 from .convert2cartesian import Converter
+import multiprocessing
 
 class DAISDataset(CacheDataset):
     """
@@ -135,7 +136,8 @@ class DAISDataset(CacheDataset):
         return (res, img_info, resized_info, file_name)
     
     def _load_mag_tape_annotations(self):
-        return [self.load_mag_tape_anno_from_ids(_ids) for _ids in self.ids]
+        pool = multiprocessing.Pool(16)
+        return pool.map(self.load_mag_tape_anno_from_ids, self.ids)
     
     def load_mag_tape_anno_from_ids(self, id_):
         im_ann = self.coco.loadImgs(id_)[0]
