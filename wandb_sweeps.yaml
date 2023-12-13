@@ -1,4 +1,4 @@
-name: lr_loss_sweep
+name: lr_loss_augment_sweep
 project: YOLinO-DAIS
 entity: annastasijamanojlovska
 program: tools/train.py
@@ -8,9 +8,11 @@ metric:
   goal: maximize
 parameters:
   lr:
-    values: [0.01, 0.02, 0.03]
+    values: [0.00001, 0.0001, 0.001, 0.01]
   loss_param:
     values: [0.5, 0.6, 0.7]
+  augment:
+    values: ["True", "False"]
 command:
   - ${env}
   - python

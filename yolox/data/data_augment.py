@@ -20,7 +20,8 @@ from yolox.utils import xyxy2cxcywh
 
 import torch
 from loguru import logger
-
+from torchvision import transforms
+import wandb
 
 
 def augment_hsv(img, hgain=5, sgain=30, vgain=30):
@@ -166,6 +167,7 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 class TrainTransformYOLinO:
     def __init__(self, max_labels=3):
         self.max_labels = max_labels
+        self.color_jitter_transform = transforms.ColorJitter(brightness=(0.001, 0.01), hue=0.5) # brightness=(0.001, 0.01)
     
     def __call__(self, image, targets, input_dim):
         lines = targets.copy()
@@ -175,9 +177,11 @@ class TrainTransformYOLinO:
         lines = torch.from_numpy(lines)
         image = torch.tensor(image)
 
+        if wandb.config.augment == "True":
+            image = self.color_jitter_transform(image)
+
         return image, lines
 
-# NE DELA
 class ValTransformYOLinO:
     def __init__(self, swap=(2, 0, 1), legacy=False):
         self.swap = swap

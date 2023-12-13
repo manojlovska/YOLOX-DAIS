@@ -18,7 +18,7 @@ import random
 # from .base_exp import BaseExp
 
 from dvclive import Live
-# import wandb 
+import wandb 
 
 wandb.init()
 
@@ -29,7 +29,7 @@ class Exp(MyExp):
         self.warmup_epochs = 1
         self.max_epoch = 3
         self.warmup_lr = 0
-        self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0
+        self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0 
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 15
         self.min_lr_ratio = 0.05
