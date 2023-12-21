@@ -25,7 +25,7 @@ command:
   - 8
   - "--fp16"
   - "-c"
-  - "/home/manojlovska/Documents/YOLOX/models/yolox_darknet.pth"
+  - "models/yolox_darknet.pth"
   - "--logger"
   - "wandb"
   - "wandb-project"

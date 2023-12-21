@@ -71,27 +71,11 @@ class Exp(MyExp):
         logger.info("GPU MEMORY AVAILABLE: " + str(torch.cuda.mem_get_info()))
 
         # --------------- dataset path config ----------------- #
-        self.data_dir = '/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO'
+        self.data_dir = 'datasets/DAIS-COCO'
         self.train_ann = 'instances_train.json'
         self.val_ann = 'instances_valid.json'
 
         # --------------- Tracking experiments with DVC ----------------- #
-        with Live(save_dvc_exp=True) as live:
-            live.log_param("depth", self.depth)
-            live.log_param("width", self.width)
-            live.log_param("num_classes", self.num_classes)
-            live.log_param("max_epoch", self.max_epoch)
-            live.log_param("data_num_workers", self.data_num_workers)
-            live.log_param("input_size ", self.input_size )
-            live.log_param("random_size", self.random_size)
-            live.log_param("mosaic_scale", self.mosaic_scale)
-            live.log_param("test_size", self.test_size)
-            live.log_param("mosaic_prob", self.mosaic_prob)
-            live.log_param("enable_mixup", self.enable_mixup)
-            live.log_param("eval_interval", self.eval_interval)
-            live.log_param("basic_lr_per_img", self.basic_lr_per_img)
-            live.log_param("thresh_lr_scale", self.thresh_lr_scale)
-            live.log_param("activation_function", self.act)
 
     def preprocess(self, inputs, targets, tsize):
         return inputs, targets
