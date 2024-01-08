@@ -8,6 +8,7 @@ artifacts/
 test-images/
 wandb/
 dvclive/
+*.sif
 
 # do not ignore datasets under yolox/data
 !*yolox/data/datasets/
