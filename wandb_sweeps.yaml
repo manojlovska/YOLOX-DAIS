@@ -22,7 +22,7 @@ command:
   - "-d"
   - 1
   - "-b"
-  - 8
+  - 16
   - "--fp16"
   - "-c"
   - "models/yolox_darknet.pth"

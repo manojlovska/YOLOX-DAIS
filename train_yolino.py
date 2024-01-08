@@ -26,8 +26,8 @@ class Exp(MyExp):
     def __init__(self):
         super(Exp, self).__init__()
         # --------------  training config --------------------- #
-        self.warmup_epochs = 1
-        self.max_epoch = 3
+        self.warmup_epochs = 5
+        self.max_epoch = 80
         self.warmup_lr = 0
         self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0 
         self.scheduler = "yoloxwarmcos"
@@ -56,7 +56,7 @@ class Exp(MyExp):
         self.depth = 0.33
         self.width = 0.50
         self.num_classes = 3
-        self.data_num_workers = 1
+        self.data_num_workers = 4
         self.input_size = (640, 640)
         self.random_size = (10, 20)
         self.test_size = (640, 640)
