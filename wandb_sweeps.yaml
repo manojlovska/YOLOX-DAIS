@@ -1,4 +1,4 @@
-name: lr_loss_augment_sweep
+name: lr_loss_augment_sweep_sling
 project: YOLinO-DAIS
 entity: annastasijamanojlovska
 program: tools/train.py

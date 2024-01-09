@@ -176,6 +176,9 @@ class Trainer:
             batch_size=self.args.batch_size, is_distributed=self.is_distributed
         )
         # Tensorboard and Wandb loggers
+        os.environ["HTTPS_PROXY"] = "http://www-proxy.ijs.si:8080"
+        os.environ["https_proxy"] = "http://www-proxy.ijs.si:8080"
+        
         if self.rank == 0:
             if self.args.logger == "tensorboard":
                 self.tblogger = SummaryWriter(os.path.join(self.file_name, "tensorboard"))

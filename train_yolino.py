@@ -20,6 +20,9 @@ import random
 from dvclive import Live
 import wandb 
 
+os.environ["HTTPS_PROXY"] = "http://www-proxy.ijs.si:8080"
+os.environ["https_proxy"] = "http://www-proxy.ijs.si:8080"
+
 wandb.init()
 
 class Exp(MyExp):
