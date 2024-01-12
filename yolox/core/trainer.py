@@ -188,6 +188,7 @@ class Trainer:
                     self.exp,
                     self.evaluator.dataloader.dataset
                 )
+                self.file_name = os.path.join(self.file_name, self.exp.wandb_name)
             else:
                 raise ValueError("logger must be either 'tensorboard' or 'wandb'")
 
@@ -196,7 +197,7 @@ class Trainer:
 
     def after_train(self):
         logger.info(
-            "Training of experiment is done and the best AP is {:.2f}".format(self.best_ap * 100)
+            "Training of experiment is done and the best F1 score is {:.2f}".format(self.best_ap * 100)
         )
         if self.rank == 0:
             if self.args.logger == "wandb":

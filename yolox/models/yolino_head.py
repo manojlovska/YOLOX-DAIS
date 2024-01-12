@@ -99,7 +99,7 @@ class YOLinOHead(nn.Module):
         # L_loc /= num_cells
         # L_resp /= num_gt
         # L_noresp /= (num_cells - num_gt)
-        p = wandb.config.loss_param
+        p = wandb.config.loss_param # 0.5
 
         total_loss = p * L_loc + (1-p)/2 * (L_resp + L_noresp)
 
