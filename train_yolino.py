@@ -23,16 +23,16 @@ import wandb
 os.environ["HTTPS_PROXY"] = "http://www-proxy.ijs.si:8080"
 os.environ["https_proxy"] = "http://www-proxy.ijs.si:8080"
 
-wandb.init()
+run = wandb.init()
 
 class Exp(MyExp):
     def __init__(self):
         super(Exp, self).__init__()
         # --------------  training config --------------------- #
         self.warmup_epochs = 5
-        self.max_epoch = 80
+        self.max_epoch = 2
         self.warmup_lr = 0
-        self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0 
+        self.basic_lr_per_img = 0.01 / 64.0 # wandb.config.lr / 64.0 # 0.01 / 64.0 
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 15
         self.min_lr_ratio = 0.05
@@ -59,13 +59,15 @@ class Exp(MyExp):
         self.depth = 0.33
         self.width = 0.50
         self.num_classes = 3
-        self.data_num_workers = 4
+        self.data_num_workers = 1
         self.input_size = (640, 640)
         self.random_size = (10, 20)
         self.test_size = (640, 640)
         self.eval_interval = 1
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         # modify 'silu' to 'relu' for deployment on DPU
+        self.output_dir = "./YOLOX_outputs"
+        self.wandb_name = run.name
         self.act = 'relu'
         self.thresh_lr_scale = 10
         self.device = torch.device('cuda:1')
@@ -125,9 +127,7 @@ class Exp(MyExp):
             json_file=self.train_ann,
             img_size=self.input_size,
             mag_tape=self.mag_tape,
-            preproc=TrainTransformYOLinO(
-                max_labels=1
-            ),
+            preproc=TrainTransformYOLinO(),
             # preproc=None,
             cache=cache,
             cache_type=cache_type,

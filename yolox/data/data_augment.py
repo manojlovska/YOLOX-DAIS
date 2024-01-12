@@ -165,20 +165,22 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 
 class TrainTransformYOLinO:
-    def __init__(self, max_labels=3):
-        self.max_labels = max_labels
-        self.color_jitter_transform = transforms.ColorJitter(brightness=(0.001, 0.01), hue=0.5) # brightness=(0.001, 0.01)
-    
+    def __init__(self, hsv_prob = 1.0):
+        self.hsv_prob = hsv_prob
+
     def __call__(self, image, targets, input_dim):
         lines = targets.copy()
+
+        if wandb.config.augment["aug"] == "True":
+            h, s, v = wandb.config.augment["hsv"]
+            if random.random() < self.hsv_prob:
+                augment_hsv(image, hgain=h, sgain=s, vgain=v)
+
         image, r_o = preproc(image, input_dim)
 
         # Convert to tensors
         lines = torch.from_numpy(lines)
         image = torch.tensor(image)
-
-        if wandb.config.augment == "True":
-            image = self.color_jitter_transform(image)
 
         return image, lines
 
