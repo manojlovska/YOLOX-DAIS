@@ -9,6 +9,8 @@ test-images/
 wandb/
 dvclive/
 *.sif
+.nv
+.netrc
 
 # do not ignore datasets under yolox/data
 !*yolox/data/datasets/
