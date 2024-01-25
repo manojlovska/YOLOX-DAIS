@@ -1,4 +1,4 @@
-name: lr_loss_augment_sweep_test
+name: lr_loss_augment_hsv_sweep
 project: YOLinO-DAIS
 entity: annastasijamanojlovska
 program: tools/train.py

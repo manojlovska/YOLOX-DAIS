@@ -30,9 +30,9 @@ class Exp(MyExp):
         super(Exp, self).__init__()
         # --------------  training config --------------------- #
         self.warmup_epochs = 5
-        self.max_epoch = 2
+        self.max_epoch = 80
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 64.0 # wandb.config.lr / 64.0 # 0.01 / 64.0 
+        self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0 
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 15
         self.min_lr_ratio = 0.05
@@ -70,7 +70,7 @@ class Exp(MyExp):
         self.wandb_name = run.name
         self.act = 'relu'
         self.thresh_lr_scale = 10
-        self.device = torch.device('cuda:1')
+        # self.device = torch.device('cuda:1')
         torch.backends.cudnn.enabled = False
 
         logger.info("GPU MEMORY AVAILABLE: " + str(torch.cuda.mem_get_info()))
@@ -79,8 +79,6 @@ class Exp(MyExp):
         self.data_dir = 'datasets/DAIS-COCO'
         self.train_ann = 'instances_train.json'
         self.val_ann = 'instances_valid.json'
-
-        # --------------- Tracking experiments with DVC ----------------- #
 
     def preprocess(self, inputs, targets, tsize):
         return inputs, targets

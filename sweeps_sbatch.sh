@@ -2,10 +2,10 @@
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1  
 #SBATCH --mem=42G
-#SBATCH --time=7-0:0:0
+#SBATCH --time=12-0:0:0
 #SBATCH --partition=e7 
 #SBATCH --job-name=yolino_head_agent
-#SBATCH --output=yolino_head_agent%j.log
+#SBATCH --output=yolino_head_agent_%j.log
 #SBATCH --reservation=e7
 #SBATCH --export=WANDB_API_KEY
 #SBATCH --export=HTTPS_PROXY
