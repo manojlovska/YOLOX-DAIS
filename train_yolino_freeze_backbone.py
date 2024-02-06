@@ -13,8 +13,8 @@ import wandb
 
 from train_yolino import Exp as BaseExp
 
-run = wandb.init(project='YOLOX-YOLinO')
 os.environ['WANDB_PROJECT'] = 'YOLOX-YOLinO'
+run = wandb.init(project='YOLOX-YOLinO')
 
 class Exp(BaseExp):
     def __init__(self):
