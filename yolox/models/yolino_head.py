@@ -45,7 +45,23 @@ class YOLinOHead(nn.Module):
 
         num_predicted_channels = self.num_predictors_per_cell * (4 + self.conf) # 5 = 1 * (4 (2D Cartesian points) + 1 (confidence/ either 0 or 1))
 
-        self.conv = nn.Conv2d(
+        self.conv0 = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=3,
+            padding="same",
+            stride=1,
+        )
+
+        self.conv1 = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=3,
+            padding="same",
+            stride=1,
+        )
+
+        self.conv2 = nn.Conv2d(
             in_channels=in_channels,
             out_channels=num_predicted_channels,
             kernel_size=3,
@@ -53,7 +69,7 @@ class YOLinOHead(nn.Module):
             stride=1,
         )
 
-        self.bn = nn.BatchNorm2d(num_predicted_channels)
+        self.bn = nn.BatchNorm2d(in_channels)
         self.act = get_activation(act, inplace=True)
 
     def reshape_tensor(self, tensor):
@@ -99,14 +115,20 @@ class YOLinOHead(nn.Module):
         # L_loc /= num_cells
         # L_resp /= num_gt
         # L_noresp /= (num_cells - num_gt)
-        p = wandb.config.loss_param # 0.5
+        p = 0.5 # wandb.config.loss_param #
 
         total_loss = p * L_loc + (1-p)/2 * (L_resp + L_noresp)
 
         return (L_loc, L_resp, L_noresp, total_loss)
     
     def forward(self, x, target_tensors=None):
-        x = self.conv(x)
+        x = self.conv0(x)
+        x = self.bn(x)
+        x = self.act(x)
+        x = self.conv1(x)
+        x = self.bn(x)
+        x = self.act(x)
+        x = self.conv2(x)
         x = self.reshape_tensor(x) # torch.Tensor([batch_size, num_predicted_channels, width, height]) => torch.Tensor([batch_size, num_cells, num_predictors, variables (coordinates + confidence)])
 
         if self.training:
