@@ -75,7 +75,7 @@ class Visualizer:
         if not os.path.exists(out_path):
             os.makedirs(out_path)
 
-        self.im.save(os.path.join(out_path,name))
+        self.im.save(os.path.join(out_path, name))
 
     def show_image(self):
         self.im.show()

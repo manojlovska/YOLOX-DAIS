@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii, Inc. and its affiliates.
-
 import argparse
 import os
 import time
@@ -100,12 +96,14 @@ def get_image_list(path):
                 image_names.append(apath)
     return image_names
 
+
 def make_annotation_dict(image_names):
     annotations_val = json.load(open("datasets/DAIS-COCO/annotations_xml/instances_valid.json"))
     annotations_dict = {}
     for image_path in image_names:
 
-        filename = os.path.join(os.path.basename(os.path.dirname(image_path)),os.path.basename(image_path))
+        filename = os.path.join(os.path.basename(os.path.dirname(image_path)),
+                                os.path.basename(image_path))
 
         annotations = []
         for image in annotations_val["images"]:
@@ -117,7 +115,7 @@ def make_annotation_dict(image_names):
                         annotations.append(ann_img)
 
                 annotations_dict[filename] = annotations
-    
+
     return annotations_dict
 
 
@@ -218,24 +216,30 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
     annotations_dict = make_annotation_dict(files)
 
     for image_name in files:
-        filename = os.path.join(os.path.basename(os.path.dirname(image_name)),os.path.basename(image_name))
+        filename = os.path.join(os.path.basename(os.path.dirname(image_name)),
+                                os.path.basename(image_name))
 
         outputs, img_info = predictor.inference(image_name)
         result_image = predictor.visual(outputs[0], img_info, predictor.confthre)
-        gt_predictions_image, flag_func = visualize_gt(annotations_dict[filename], (0,255,0), result_image, show_img=False)
+        gt_predictions_image, flag_func = visualize_gt(annotations_dict[filename],
+                                                       (0, 255, 0),
+                                                       result_image,
+                                                       show_img=False)
 
         flag = True
         if save_result:
             save_folder = os.path.join(
                 vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
             )
-            os.makedirs(os.path.join(save_folder, os.path.basename(os.path.dirname(image_name))), exist_ok=True)
-            save_file_name = os.path.join(save_folder, os.path.basename(os.path.dirname(image_name)), os.path.basename(image_name))
-            save_bboxes_filename = os.path.join(save_folder, os.path.basename(os.path.dirname(image_name)), 'bboxes_' + os.path.basename(image_name))
+            os.makedirs(os.path.join(save_folder, os.path.basename(os.path.dirname(image_name))),
+                        exist_ok=True)
+            save_bboxes_filename = os.path.join(save_folder,
+                                                os.path.basename(os.path.dirname(image_name)),
+                                                'bboxes_' + os.path.basename(image_name))
 
-            if outputs[0] == None and flag_func:
+            if outputs[0] is None and flag_func:
                 flag = False
-            
+
             if flag:
                 cv2.imwrite(save_bboxes_filename, gt_predictions_image)
                 logger.info("Saving detection result in {}".format(save_bboxes_filename))

@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii, Inc. and its affiliates.
-
 import argparse
 import os
 import time
@@ -13,9 +9,8 @@ import torch
 
 from visualize_yolino import Visualizer
 from yolox.data.data_augment import ValTransform
-from yolox.data.datasets import DAIS_CLASSES
 from yolox.exp import get_exp
-from yolox.utils import fuse_model, get_model_info, postprocess, vis
+from yolox.utils import fuse_model, get_model_info
 
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
@@ -158,18 +153,16 @@ class Predictor(object):
         return outputs, img_info
 
     def visual(self, output, image_name, img_info, cls_conf=0.5):
-        ratio = img_info["ratio"]
         img = img_info["raw_img"]
         if output is None:
             return img
-        
-        output = output.cpu()
-        
 
-        output = output.reshape(20, 20, 5) # .moveaxis(1,0)
-        
+        output = output.cpu()
+        output = output.reshape(20, 20, 5)  # .moveaxis(1,0)
+
         image = Visualizer(image_name, self.test_size[0], self.test_size[1], 32)
-        polylines = image.get_polylines("/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO/annotations_xml/annotations.xml")
+        ann_path = "/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO/annotations_xml/annotations.xml"
+        polylines = image.get_polylines(ann_path)
         image.draw_grid()
         image.draw_cartesian_predictors(output, cls_conf)
         image.draw_true_polylines(polylines)
@@ -177,7 +170,7 @@ class Predictor(object):
         image.show_image()
 
         return image
-    
+
 
 def image_demo(predictor, vis_folder, path, current_time, save_result):
     if os.path.isdir(path):
@@ -190,10 +183,11 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         result_image = predictor.visual(outputs[0], image_name, img_info, predictor.confthre)
         if save_result:
             save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time), os.path.basename(os.path.dirname(image_name))
+                vis_folder,
+                time.strftime("%Y_%m_%d_%H_%M_%S", current_time),
+                os.path.basename(os.path.dirname(image_name))
             )
             os.makedirs(save_folder, exist_ok=True)
-            save_file_name = os.path.join(save_folder, os.path.basename(image_name))
             logger.info("Saving detection result in {}".format(save_folder))
             # import pdb; pdb.set_trace()
             # cv2.imwrite(save_file_name, result_image)
@@ -201,6 +195,7 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         ch = cv2.waitKey(0)
         if ch == 27 or ch == ord("q") or ch == ord("Q"):
             break
+
 
 def main(exp, args):
     if not args.experiment_name:
@@ -257,11 +252,9 @@ def main(exp, args):
             trt_file
         ), "TensorRT model is not found!\n Run python3 tools/trt.py first!"
         model.head.decode_in_inference = False
-        decoder = model.head.decode_outputs
         logger.info("Using TensorRT to inference")
     else:
         trt_file = None
-        decoder = None
 
     predictor = Predictor(
         model, exp, trt_file,
