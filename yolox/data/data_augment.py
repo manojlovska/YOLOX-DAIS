@@ -165,16 +165,18 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 
 class TrainTransformYOLinO:
-    def __init__(self, hsv_prob = 1.0):
+    def __init__(self, hsv_prob = 1.0, sweeps=False):
         self.hsv_prob = hsv_prob
+        self.sweeps = sweeps
 
     def __call__(self, image, targets, input_dim):
         lines = targets.copy()
 
-        if wandb.config.augment["aug"] == "True":
-            h, s, v = wandb.config.augment["hsv"]
-            if random.random() < self.hsv_prob:
-                augment_hsv(image, hgain=h, sgain=s, vgain=v)
+        if self.sweeps:
+            if wandb.config.augment["aug"] == "True":
+                h, s, v = wandb.config.augment["hsv"]
+                if random.random() < self.hsv_prob:
+                    augment_hsv(image, hgain=h, sgain=s, vgain=v)
 
         image, r_o = preproc(image, input_dim)
 
