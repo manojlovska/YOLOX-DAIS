@@ -1,27 +1,8 @@
-import os
-
 import torch
-import torch.nn as nn
-import torch.distributed as dist
-from loguru import logger
-
-from yolox.exp import Exp as MyExp
-
-import os
-import random
-import numpy as np
-import math
-from scipy import interpolate
-
-# from yolox.data.datasets import DAISDataset2
 from yolox.data.datasets import DAISDataset
-from yolox.data import TrainTransformYOLinO, ValTransformYOLinO
-from yolox.models import Darknet
+from yolox.data import ValTransformYOLinO
 from yolox.models import YOLinOHead
-from yolox.models import YOLOXHead, YOLOPAFPN, YOLOX
-import xml.etree.ElementTree as ET
-from yolox.evaluators.dais_evaluator import DAISEvaluator
-import cv2
+from yolox.models import YOLOPAFPN, YOLOX
 
 """ INTERPOLATION AND SAMPLING FOR NUMPY ARRAYS """
 
@@ -31,7 +12,7 @@ def interpolate_line_segment(point1, point2):
     distance = np.linalg.norm(np.array(point2) - np.array(point1))
     print("Distances: ")
     print(distance)
-    
+
     min_points = 2
     density_factor = 10.0
 
@@ -147,7 +128,7 @@ print(len(sampled_points))
 
 # # CELL LEVEL METRICS
 # calculate_distances = torch.logical_and(confs_gt > 0, confs_pred > t_conf)
-# check_distances = torch.logical_and(torch.linalg.norm(coords_gt[:, :, :, :2] - coords_pred[:, :, :, :2], dim=3) < t_cell, 
+# check_distances = torch.logical_and(torch.linalg.norm(coords_gt[:, :, :, :2] - coords_pred[:, :, :, :2], dim=3) < t_cell,
 #                                      torch.linalg.norm(coords_gt[:, :, :, 2:] - coords_pred[:, :, :, 2:], dim=3) < t_cell)
 
 # true_positives_cell = torch.logical_and(calculate_distances, check_distances).sum(dim=1)
@@ -162,13 +143,23 @@ print(len(sampled_points))
 # recall_cell = (true_positives_cell / num_ground_truths).mean(dim=0)
 # print(f"Cell based recall: {recall_cell}")
 
-###############################################################################################################################################################3
+######################################################################
 
 data_directory = '/home/manojlovska/Documents/YOLOX/datasets/DAIS-COCO'
 batch_size = 8
 
-# train_data = DAISDataset(data_dir=data_directory, img_size=(640, 640), mag_tape=True, name="train", preproc=TrainTransformYOLinO(max_labels=1))
-valdataset = DAISDataset(data_dir=data_directory, json_file="instances_valid.json", img_size=(640, 640), mag_tape=True, name="valid", preproc=ValTransformYOLinO())
+# train_data = DAISDataset(data_dir=data_directory,
+# img_size=(640, 640),
+# mag_tape=True,
+# name="train",
+# preproc=TrainTransformYOLinO(max_labels=1))
+
+valdataset = DAISDataset(data_dir=data_directory,
+                         json_file="instances_valid.json",
+                         img_size=(640, 640),
+                         mag_tape=True,
+                         name="valid",
+                         preproc=ValTransformYOLinO())
 
 # print(valdataset.__len__())
 # print(valdataset[8])
@@ -186,9 +177,16 @@ width = 0.50
 act = 'relu'
 
 in_channels = [256, 512, 1024]
-backbone = YOLOPAFPN(depth, width, in_channels=in_channels, act=act)
-head_yolino = YOLinOHead(in_channels=512, num_predictors_per_cell=1, conf=1) # Only the last layer of features
-model = YOLOX(backbone=backbone, head=None, head_yolino=head_yolino)
+backbone = YOLOPAFPN(depth,
+                     width,
+                     in_channels=in_channels,
+                     act=act)
+head_yolino = YOLinOHead(in_channels=512,
+                         num_predictors_per_cell=1,
+                         conf=1)  # Only the last layer of features
+model = YOLOX(backbone=backbone,
+              head=None,
+              head_yolino=head_yolino)
 model.cuda()
 
 sampler = torch.utils.data.SequentialSampler(valdataset)
@@ -207,68 +205,25 @@ dataloader_kwargs["batch_size"] = batch_size
 #     dataloader=val_loader,
 #     img_size=valdataset.img_size,
 #     confthre=test_conf,
-#     nmsthre=nmsthre,   
+#     nmsthre=nmsthre,
 #     num_classes=num_classes,
 #     testdev=testdev,
 #     mag_tape=True,
 # )
 
-# evaluated_outputs = evaluator.evaluate(model=model, distributed=False, half=False, trt_file=None, decoder=None, test_size=valdataset.img_size, return_outputs=False)
+# evaluated_outputs = evaluator.evaluate(model=model,
+#                                        distributed=False,
+#                                        half=False,
+#                                        trt_file=None,
+#                                        decoder=None,
+#                                        test_size=valdataset.img_size,
+#                                        return_outputs=False)
 
 # print(evaluated_outputs)
 # print(len(evaluated_outputs))
 # print(evaluated_outputs[0].shape)
-test_size = (640, 640)
-device = "cpu"
-
-def inference(img):
-    img_info = {"id": 0}
-    if isinstance(img, str):
-        img_info["file_name"] = os.path.basename(img)
-        img = cv2.imread(img)
-    else:
-        img_info["file_name"] = None
-
-    height, width = img.shape[:2]
-    img_info["height"] = height
-    img_info["width"] = width
-    img_info["raw_img"] = img
-
-    ratio = min(test_size[0] / img.shape[0], test_size[1] / img.shape[1])
-    img_info["ratio"] = ratio
-
-    img, _ = self.preproc(img, None, test_size)
-    img = torch.from_numpy(img).unsqueeze(0)
-    img = img.float()
-    if device == "gpu":
-        img = img.cuda()
-        if self.fp16:
-            img = img.half()  # to FP16
-
-    with torch.no_grad():
-        t0 = time.time()
-        outputs = model(img)
-
-        logger.info("Infer time: {:.4f}s".format(time.time() - t0))
-    return outputs, img_info
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# test_size = (640, 640)
+# device = "cpu"
 
 # model = Darknet(depth=53)
 # in_tensor = torch.rand((1, 3, 640, 640))
@@ -316,9 +271,13 @@ def inference(img):
 # target_tensor = torch.rand((1, 5, 20, 20))
 
 # # Reshape target tensor
-# batch_size = target_tensor.shape[0]        
+# batch_size = target_tensor.shape[0]
 # target_tensor = target_tensor.permute(0, 2, 3, 1)
-# target_tensor = target_tensor.reshape(batch_size, -1, num_predictors, 5) # [batch_size, num_cells, num_predictors, coordinates + conf_score]
+# target_tensor = target_tensor.reshape(batch_size,
+#                                       -1,
+#                                       num_predictors,
+#                                       5)
+# [batch_size, num_cells, num_predictors, coordinates + conf_score]
 
 # # Darknet
 # model = Darknet(depth=53)
@@ -340,11 +299,15 @@ def inference(img):
 # L_resp = []
 # total_loss = None
 
-# batch_size = outputs.shape[0]        
+# batch_size = outputs.shape[0]
 # pred = outputs.permute(0, 2, 3, 1)
-# pred = pred.reshape(batch_size, -1, num_predictors, 5) # [batch_size, num_cells, num_predictors, coordinates + conf_score]
+# pred = pred.reshape(batch_size,
+#                     -1,
+#                     num_predictors,
+#                     5)
+# [batch_size, num_cells, num_predictors, coordinates + conf_score]
 
-# coords = pred[:, :, :, :4] 
+# coords = pred[:, :, :, :4]
 # conf_scores = pred[:, :, :, -1:]
 
 # p = 0.5
@@ -356,17 +319,21 @@ def inference(img):
 #         coords_cell_gt = target_tensor[batch_idx, i, :, :4] # Ground truth coordinates
 #         coords_cell_gt = coords_cell_gt.numpy()[0]
 
-#         conf_score_cell_gt = target_tensor[batch_idx, i, :, -1:] # Ground truth confidence score (either 1 or 0, either there is a line segment inside the cell or not)
+#         Ground truth confidence score
+#         (either 1 or 0, either there is a line segment inside the cell or not)
+#         conf_score_cell_gt = target_tensor[batch_idx, i, :, -1:]
 #         conf_score_cell_gt = conf_score_cell_gt.item()
 
 #         coords_cell_pred = coords[batch_idx, i, :, :] # Predicted coordinates for the cell
 #         coords_cell_pred = coords_cell_pred.detach().numpy()[0]
 
-#         conf_score_cell_pred = conf_scores[batch_idx, i, :, :] # Predicted confidence score for the cell
+#         Predicted confidence score for the cell
+#         conf_score_cell_pred = conf_scores[batch_idx, i, :, :]
 #         conf_score_cell_pred = conf_score_cell_pred.sigmoid().item()
 
 #         # Distance calculation between gt and pred coords in that cell
-#         euc_dist = np.linalg.norm(coords_cell_gt[:2] - coords_cell_pred[:2]) + np.linalg.norm(coords_cell_gt[2:] - coords_cell_pred[2:])
+#         euc_dist = np.linalg.norm(coords_cell_gt[:2] - coords_cell_pred[:2]) + \
+#                   np.linalg.norm(coords_cell_gt[2:] - coords_cell_pred[2:])
 #         euc_distances.append(euc_dist)
 
 #         # Confidence score error
@@ -395,8 +362,8 @@ target_tensor = torch.rand((8, 5, 20, 20))
 # model_predictions2 = model2(in_tensor, target_tensor)
 # print(model_predictions2)
 
-
-################################ TEST TRAINING
+############################################################
+# TEST TRAINING
 # in_channels = [256, 512, 1024]
 # backbone = YOLOPAFPN(in_channels=in_channels)
 # head = YOLinOHead(in_channels=1024, num_predictors_per_cell=1, conf=1)
@@ -404,25 +371,10 @@ target_tensor = torch.rand((8, 5, 20, 20))
 # model.train()
 # print(model(in_tensor))
 
-################################ TEST TRAINER
+############################################################
+# TEST TRAINER
 # from .train_yolino import Exp
 # exp = Exp()
 
-
-
 # trainer = exp.get_trainer(args)
 # trainer.train()
-
-
-    
-        
-
-
-
-
-
-
-
-
-
-

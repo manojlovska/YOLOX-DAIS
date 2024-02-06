@@ -1,20 +1,12 @@
 import os
-
 import torch
-import torch.nn as nn
-import torch.distributed as dist
 from loguru import logger
 import wandb
-import os
-import random
-
-from dvclive import Live
-import wandb 
-
 from train_yolino import Exp as BaseExp
 
 os.environ['WANDB_PROJECT'] = 'YOLOX-YOLinO'
 run = wandb.init(project='YOLOX-YOLinO')
+
 
 class Exp(BaseExp):
     def __init__(self):
@@ -24,7 +16,7 @@ class Exp(BaseExp):
         self.warmup_epochs = 5
         self.max_epoch = 80
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 64.0 
+        self.basic_lr_per_img = 0.01 / 64.0
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 15
         self.min_lr_ratio = 0.05
@@ -46,7 +38,6 @@ class Exp(BaseExp):
         self.perspective = 0.0
         self.enable_mixup = True
         self.sweeps = False
-
 
         # --------------- basic config ----------------- #
         self.depth = 0.33

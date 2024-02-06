@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii, Inc. and its affiliates.
-
 import os
 
 import torch
@@ -12,18 +8,11 @@ import wandb
 
 from yolox.exp import Exp as MyExp
 
-import os
-import random
-
-# from .base_exp import BaseExp
-
-from dvclive import Live
-import wandb 
-
 os.environ["HTTPS_PROXY"] = "http://www-proxy.ijs.si:8080"
 os.environ["https_proxy"] = "http://www-proxy.ijs.si:8080"
 
 run = wandb.init()
+
 
 class Exp(MyExp):
     def __init__(self):
@@ -32,7 +21,7 @@ class Exp(MyExp):
         self.warmup_epochs = 5
         self.max_epoch = 80
         self.warmup_lr = 0
-        # self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0 
+        # self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 15
         self.min_lr_ratio = 0.05
@@ -53,7 +42,6 @@ class Exp(MyExp):
         self.shear = 2.0
         self.perspective = 0.0
         self.enable_mixup = True
-
 
         # --------------- basic config ----------------- #
         self.depth = 0.33
@@ -94,9 +82,17 @@ class Exp(MyExp):
 
         if getattr(self, "model", None) is None:
             in_channels = [256, 512, 1024]
-            backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
-            head_yolino = YOLinOHead(in_channels=512, num_predictors_per_cell=1, conf=1, act=self.act) # Only the last layer of features
-            self.model = YOLOX(backbone=backbone, head=None, head_yolino=head_yolino)
+            backbone = YOLOPAFPN(self.depth,
+                                 self.width,
+                                 in_channels=in_channels,
+                                 act=self.act)
+            head_yolino = YOLinOHead(in_channels=512,
+                                     num_predictors_per_cell=1,
+                                     conf=1,
+                                     act=self.act)  # Only the last layer of features
+            self.model = YOLOX(backbone=backbone,
+                               head=None,
+                               head_yolino=head_yolino)
 
         self.model.apply(init_yolo)
         self.model.train()
@@ -113,12 +109,6 @@ class Exp(MyExp):
         """
         from yolox.data.datasets import DAISDataset
         from yolox.data import TrainTransformYOLinO
-        from yolox.data.data_augment import preproc
-        from tools.train import make_parser
-        # parser = make_parser()
-        # args = parser.parse_args()
-
-        # batch_size = args.batch_size
 
         return DAISDataset(
             data_dir=self.data_dir,
@@ -130,7 +120,7 @@ class Exp(MyExp):
             cache=cache,
             cache_type=cache_type,
         )
-    
+
     def get_data_loader(self, batch_size, is_distributed, no_aug=False, cache_img: str = None):
         """
         Get dataloader according to cache_img parameter.
@@ -142,11 +132,9 @@ class Exp(MyExp):
                 None: Do not use cache, in this case cache_data is also None.
         """
         from yolox.data import (
-            TrainTransformYOLinO,
             YoloBatchSampler,
             DataLoader,
             InfiniteSampler,
-            MosaicDetection,
             worker_init_reset_seed,
         )
         from yolox.utils import wait_for_the_master
@@ -200,11 +188,10 @@ class Exp(MyExp):
         train_loader = DataLoader(self.dataset, **dataloader_kwargs)
 
         return train_loader
-    
+
     def get_eval_dataset(self, **kwargs):
         from yolox.data import DAISDataset, ValTransformYOLinO
         testdev = kwargs.get("testdev", False)
-        legacy = kwargs.get("legacy", False)
 
         return DAISDataset(
             data_dir=self.data_dir,
@@ -236,7 +223,6 @@ class Exp(MyExp):
 
         return val_loader
 
-######################################################## PRILAGODI
     def get_evaluator(self, batch_size, is_distributed, testdev=False, legacy=False):
         from yolox.evaluators.dais_evaluator import DAISEvaluator
 
@@ -245,12 +231,12 @@ class Exp(MyExp):
             dataloader=val_loader,
             img_size=self.test_size,
             confthre=self.test_conf,
-            nmsthre=self.nmsthre,   
+            nmsthre=self.nmsthre,
             num_classes=self.num_classes,
             testdev=testdev,
             mag_tape=self.mag_tape,
         )
         return evaluator
-    
+
     def eval(self, model, evaluator, is_distributed, half=False, return_outputs=False):
         return evaluator.evaluate(model, is_distributed, half, return_outputs=return_outputs)

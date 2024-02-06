@@ -1,9 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii, Inc. and its affiliates.
-
 import os
-
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -11,15 +6,13 @@ from loguru import logger
 
 from yolox.exp import Exp as MyExp
 
-import os
-import random
-
 # from .base_exp import BaseExp
 
 from dvclive import Live
-# import wandb 
+# import wandb
 
 # wandb.init()
+
 
 class Exp(MyExp):
     def __init__(self):
@@ -46,7 +39,6 @@ class Exp(MyExp):
         self.shear = 2.0
         self.perspective = 0.0
         self.enable_mixup = True
-
 
         # --------------- basic config ----------------- #
         self.depth = 0.33
@@ -78,7 +70,7 @@ class Exp(MyExp):
             live.log_param("num_classes", self.num_classes)
             live.log_param("max_epoch", self.max_epoch)
             live.log_param("data_num_workers", self.data_num_workers)
-            live.log_param("input_size ", self.input_size )
+            live.log_param("input_size ", self.input_size)
             live.log_param("random_size", self.random_size)
             live.log_param("mosaic_scale", self.mosaic_scale)
             live.log_param("test_size", self.test_size)
@@ -88,6 +80,7 @@ class Exp(MyExp):
             live.log_param("basic_lr_per_img", self.basic_lr_per_img)
             live.log_param("thresh_lr_scale", self.thresh_lr_scale)
             live.log_param("activation_function", self.act)
+
     def get_model(self):
         from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead
 
@@ -107,7 +100,7 @@ class Exp(MyExp):
         self.model.head.initialize_biases(1e-2)
         self.model.train()
         return self.model
-    
+
     def get_dataset(self, cache: bool = False, cache_type: str = "ram"):
         """
         Get dataset according to cache and cache_type parameters.
@@ -132,7 +125,7 @@ class Exp(MyExp):
             cache=cache,
             cache_type=cache_type,
         )
-    
+
     def get_data_loader(self, batch_size, is_distributed, no_aug=False, cache_img: str = None):
         """
         Get dataloader according to cache_img parameter.
@@ -201,7 +194,7 @@ class Exp(MyExp):
         train_loader = DataLoader(self.dataset, **dataloader_kwargs)
 
         return train_loader
-    
+
     def get_eval_dataset(self, **kwargs):
         from yolox.data import DAISDataset, ValTransform
         testdev = kwargs.get("testdev", False)
@@ -244,11 +237,8 @@ class Exp(MyExp):
             dataloader=val_loader,
             img_size=self.test_size,
             confthre=self.test_conf,
-            nmsthre=self.nmsthre,   
+            nmsthre=self.nmsthre,
             num_classes=self.num_classes,
             testdev=testdev,
         )
         return evaluator
-
-        
-
