@@ -32,7 +32,7 @@ class Exp(MyExp):
         self.warmup_epochs = 5
         self.max_epoch = 80
         self.warmup_lr = 0
-        self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0 
+        # self.basic_lr_per_img = wandb.config.lr / 64.0 # 0.01 / 64.0 
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 15
         self.min_lr_ratio = 0.05
