@@ -1,8 +1,5 @@
-# def test_augmentation():
 import torch
 from train_yolino import Exp
-import matplotlib.pyplot as plt
-from torchvision.utils import make_grid
 from torchvision import transforms
 import os
 import torchvision
@@ -24,7 +21,7 @@ save_dir = os.path.join(yolox_outputs_dir, "augment_images")
 #     print(imgs[0].shape)
 #     save_img_name = os.path.join(save_dir, f"val_batch_{cur_iter}.png")
 #     torchvision.utils.save_image(imgs, save_img_name)
-    
+
 
 train_dataset = exp.get_dataset()
 # import pdb; pdb.set_trace()
@@ -41,14 +38,8 @@ for cur_iter, (imgs, ann, info_imgs, ids) in enumerate(train_dataloader):
         cv2_image = np.transpose(numpy_image, (1, 2, 0))
         cv2_image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
         save_img_name_cv2 = os.path.join(save_dir, f"batch_{cur_iter}_{idx}.png")
-        cv2.imwrite(save_img_name_cv2, cv2_image) 
+        cv2.imwrite(save_img_name_cv2, cv2_image)
 
-
-    
     torchvision.utils.save_image(imgs, save_img_name)
-    import pdb; pdb.set_trace()
-
-# import pdb; pdb.set_trace()
-
-
-
+    import pdb
+    pdb.set_trace()
