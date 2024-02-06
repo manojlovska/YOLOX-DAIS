@@ -2,6 +2,7 @@ import numpy as np
 from shapely.geometry import LineString
 from math import hypot
 
+
 class Converter:
     def __init__(self, width, height, square_size):
         self.height = height
@@ -15,12 +16,13 @@ class Converter:
         self.extrapolation_threshold = 0.5
         # accounts for annotation mistakes on edges (in pixels)
         self.edge_margin = 2
-        # if distance between two cartesian points is greater than this, stop looking for more points (cartesian)
+        # if distance between two cartesian points is greater than this,
+        # stop looking for more points (cartesian)
         self.min_cart_distance = 0.02
-        # if the longest upper line in a square is this times longer than the longest bottom one, pick it (percentage)
+        # if the longest upper line in a square is this times longer than the longest bottom one,
+        # pick it (percentage)
         self.upper_line_threshold = 2.5
 
-    
     # first line is annotaded line
     def get_interstection(self, first_line, second_line, width, height):
         # account for annnotation mistakes
@@ -56,7 +58,7 @@ class Converter:
             return [int(int_pt.x), int(int_pt.y)]
 
         return False
-    
+
     def cartesian_line(self, points):
         p1 = points[0]
         p2 = points[1]
@@ -66,7 +68,7 @@ class Converter:
         C = (p1[0]*p2[1] - p2[0]*p1[1])
 
         return A, B, -C
-    
+
     def get_cartesian_intersection(self, line1, line2):
         L1 = self.cartesian_line(line1)
         L2 = self.cartesian_line(line2)
@@ -83,7 +85,7 @@ class Converter:
             return x, y
         else:
             return False
-        
+
     # returns all squares that touch the given point
     def get_touching_squares(self, point, width, height, square_size):
         x = int(point[0])
@@ -104,7 +106,7 @@ class Converter:
             wanted_squares += [[initial_square[0] + 1, initial_square[1] + 1]]
 
         return wanted_squares
-    
+
     # convert x, y coordiante on the image to cartesian coordinate for a specific square
     def to_cartesian_xy(self, square_indexes, point, square_size):
         x = point[0]
@@ -123,7 +125,7 @@ class Converter:
         new_y = 1 - ((y - y1) / square_size)
 
         return [new_x, new_y]
-    
+
     # adds cartesian intersected point to the wanted square
     def add_intersected_point(self, squares, polyline, square_index, cartesian_point):
         square_index = str(square_index)
@@ -142,7 +144,7 @@ class Converter:
         y2 = points[1][1]
 
         return hypot(x1 - x2, y1 - y2)
-    
+
     # get the longest line in a square that allings with given conditions
     def get_longest_cond_line(self, intersections, top_to_bottom=False):
         intersections.sort(key=lambda x: x[1], reverse=top_to_bottom)
@@ -151,7 +153,7 @@ class Converter:
             interesting_intersections += [intersection]
             first_intersection = interesting_intersections[0]
             if len(interesting_intersections) > 1 and (abs(intersection[1] - first_intersection[1]) >= self.min_cart_distance
-                                                    and abs(intersection[0] - first_intersection[0]) >= self.min_cart_distance):
+                                                  and abs(intersection[0] - first_intersection[0]) >= self.min_cart_distance):
                 break
 
         longest_line = [interesting_intersections[0], interesting_intersections[1]]
@@ -293,7 +295,8 @@ class Converter:
                 if len(intersected_squares[i][key]) == 1:
                     del intersected_squares[i][key]
 
-        # if more than one polyline goes through a square, leave only the polyline with the longest intersection line
+        # if more than one polyline goes through a square,
+        # leave only the polyline with the longest intersection line
         for i in range(0, len(intersected_squares)):
             if not intersected_squares[i]:
                 continue

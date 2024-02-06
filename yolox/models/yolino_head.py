@@ -1,16 +1,6 @@
-import math
-from loguru import logger
-import numpy as np
-import wandb
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from yolox.utils import bboxes_iou, cxcywh2xyxy, meshgrid, visualize_assign
-
-from .losses import IOUloss
-from .network_blocks import BaseConv, DWConv
 
 class SiLU(nn.Module):
     """export-friendly version of nn.SiLU()"""
@@ -31,19 +21,21 @@ def get_activation(name="silu", inplace=True):
         raise AttributeError("Unsupported act type: {}".format(name))
     return module
 
+
 class YOLinOHead(nn.Module):
-    def __init__(self, 
-        in_channels: int,
-        num_predictors_per_cell: int,
-        conf: int,
-        act="silu"):
-    
+    def __init__(self,
+                 in_channels: int,
+                 num_predictors_per_cell: int,
+                 conf: int,
+                 act="silu"):
+
         super().__init__()
 
         self.num_predictors_per_cell = num_predictors_per_cell
         self.conf = conf
 
-        num_predicted_channels = self.num_predictors_per_cell * (4 + self.conf) # 5 = 1 * (4 (2D Cartesian points) + 1 (confidence/ either 0 or 1))
+        # 5 = 1 * (4 (2D Cartesian points) + 1 (confidence/ either 0 or 1))
+        num_predicted_channels = self.num_predictors_per_cell * (4 + self.conf)
 
         self.conv0 = nn.Conv2d(
             in_channels=in_channels,
@@ -98,29 +90,32 @@ class YOLinOHead(nn.Module):
         confs_pred = outputs[:, :, :, -1].float().sigmoid()
 
         # shape: [1] => 1: average of all batches
-        # sum for all cells, mean for all batches, only include cells where in the ground truth there are line segments i.e. conf_gt > 0
-        L_loc = torch.where(confs_gt > 0, (torch.linalg.norm(coords_gt[:, :, :, :2] - coords_pred[:, :, :, :2], dim=3)**2 + \
-        torch.linalg.norm(coords_gt[:, :, :, 2:] - coords_pred[:, :, :, 2:], dim=3)**2), torch.zeros_like(confs_gt)).sum(dim=1).mean(dim=0) 
+        # sum for all cells, mean for all batches,
+        # only include cells where in the ground truth there are line segments i.e. conf_gt > 0
+        L_loc = torch.where(confs_gt > 0,
+                            (torch.linalg.norm(coords_gt[:, :, :, :2] - coords_pred[:, :, :, :2], dim=3)**2 +
+                            torch.linalg.norm(coords_gt[:, :, :, 2:] - coords_pred[:, :, :, 2:], dim=3)**2),
+                            torch.zeros_like(confs_gt)).sum(dim=1).mean(dim=0)
 
-        # sum for all cells, mean for all batches, only include cells where in the ground truth there are line segments i.e. conf_gt > 0
-        L_resp = torch.where(confs_gt > 0, (confs_pred-torch.ones_like(confs_pred))**2, torch.zeros_like(confs_pred)).sum(dim=1).mean(dim=0) 
+        # sum for all cells, mean for all batches,
+        # only include cells where in the ground truth there are line segments i.e. conf_gt > 0
+        L_resp = torch.where(confs_gt > 0,
+                             (confs_pred-torch.ones_like(confs_pred))**2,
+                             torch.zeros_like(confs_pred)).sum(dim=1).mean(dim=0)
 
-        # sum for all cells, mean for all batches, only include cells where in the ground truth there are no line segments i.e. conf_gt < 1 (penalize the error where the network is confident there is a gt_line when there is not)
-        L_noresp = torch.where(confs_gt < 1, (confs_pred-torch.zeros_like(confs_pred))**2, torch.zeros_like(confs_pred)).sum(dim=1).mean(dim=0)
+        # sum for all cells, mean for all batches,
+        # only include cells where in the ground truth there are no line segments i.e. conf_gt < 1
+        # (penalize the error where the network is confident there is a gt_line when there is not)
+        L_noresp = torch.where(confs_gt < 1,
+                               (confs_pred-torch.zeros_like(confs_pred))**2,
+                               torch.zeros_like(confs_pred)).sum(dim=1).mean(dim=0)
 
-        # For normalization of the losses
-        # num_cells = target_tensors.shape[1]
-        # num_gt = (confs_gt > 0).squeeze(0).sum()
-
-        # L_loc /= num_cells
-        # L_resp /= num_gt
-        # L_noresp /= (num_cells - num_gt)
-        p = 0.5 # wandb.config.loss_param #
+        p = 0.5  # wandb.config.loss_param #
 
         total_loss = p * L_loc + (1-p)/2 * (L_resp + L_noresp)
 
         return (L_loc, L_resp, L_noresp, total_loss)
-    
+
     def forward(self, x, target_tensors=None):
         x = self.conv0(x)
         x = self.bn(x)
@@ -129,13 +124,15 @@ class YOLinOHead(nn.Module):
         x = self.bn(x)
         x = self.act(x)
         x = self.conv2(x)
-        x = self.reshape_tensor(x) # torch.Tensor([batch_size, num_predicted_channels, width, height]) => torch.Tensor([batch_size, num_cells, num_predictors, variables (coordinates + confidence)])
+
+        # torch.Tensor([batch_size, num_predicted_channels, width, height]) to
+        # torch.Tensor([batch_size, num_cells, num_predictors, variables (coordinates+confidence)])
+        x = self.reshape_tensor(x)
 
         if self.training:
-            return self.get_losses(x, target_tensors) # TODO
-        
+            return self.get_losses(x, target_tensors)
+
         else:
-            return x.sigmoid() # torch.Tensor([batch_size, num_cells, num_predictors, variables (coordinates + confidence)]) => torch.Tensor([batch_size, 400, 1, 5]) for dark5
-        
-
-
+            # torch.Tensor([batch_size, num_cells, num_predictors, variables (coordinates + confidence)])
+            # torch.Tensor([batch_size, 400, 1, 5]) for dark5
+            return x.sigmoid()

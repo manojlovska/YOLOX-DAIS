@@ -1,25 +1,16 @@
-import torch
-from torch.utils.data import Dataset
-from torchvision import transforms
-from loguru import logger
-
-
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii, Inc. and its affiliates.
 import copy
 import os
 
 import cv2
 import numpy as np
 from pycocotools.coco import COCO
-import xml.etree.ElementTree as ET
 
 from ..dataloading import get_yolox_datadir
 from .datasets_wrapper import CacheDataset, cache_read_img
-from .dais_classes import DAIS_CLASSES
 from .convert2cartesian import Converter
 import multiprocessing
+from loguru import logger
+
 
 class DAISDataset(CacheDataset):
     """
@@ -38,11 +29,11 @@ class DAISDataset(CacheDataset):
         cache_type="ram",
     ):
         """
-        COCO dataset initialization. Annotation data are read into memory by COCO API.
+        DAIS dataset initialization.
         Args:
             data_dir (str): dataset root directory
-            json_file (str): COCO json file name
-            name (str): COCO data name (e.g. 'train2017' or 'val2017')
+            json_file (str): DAIS json file name
+            name (str): DAIS data name (e.g. 'train' or 'val')
             img_size (int): target image size after pre-processing
             preproc: data augmentation strategy
         """
@@ -50,9 +41,11 @@ class DAISDataset(CacheDataset):
             data_dir = os.path.join(get_yolox_datadir(), "DAIS-COCO")
         self.data_dir = data_dir
         self.json_file = json_file
-        self.mag_tape = mag_tape        
+        self.mag_tape = mag_tape
         self.square_size = 32
-        self.converter = Converter(width=img_size[0], height=img_size[1], square_size=self.square_size)
+        self.converter = Converter(width=img_size[0],
+                                   height=img_size[1],
+                                   square_size=self.square_size)
 
         self.coco = COCO(os.path.join(self.data_dir, "annotations_xml", self.json_file))
         self.ids = self.coco.getImgIds()
@@ -63,11 +56,11 @@ class DAISDataset(CacheDataset):
         self.name = name
         self.img_size = img_size
         self.preproc = preproc
-        self.annotations = self._load_mag_tape_annotations() if self.mag_tape else self._load_coco_annotations()
+        self.annotations = self._load_mag_tape_annotations() if self.mag_tape \
+            else self._load_coco_annotations()
 
         path_filename = [os.path.join(name, anno[3]) for anno in self.annotations]
-        
-        
+
         super().__init__(
             input_dimension=img_size,
             num_imgs=self.num_imgs,
@@ -91,8 +84,10 @@ class DAISDataset(CacheDataset):
         anno_ids = self.coco.getAnnIds(imgIds=[int(id_)], iscrowd=False)
         annotations = self.coco.loadAnns(anno_ids)
 
-        bbox_annotations = [annotations[i] for i in range(len(annotations)) if "bbox" in annotations[i]]
-        
+        bbox_annotations = [
+            annotations[i] for i in range(len(annotations)) if "bbox" in annotations[i]
+            ]
+
         # Only bounding boxes
         objs = []
         count = 0
@@ -112,7 +107,7 @@ class DAISDataset(CacheDataset):
 
         num_objs = len(objs)
 
-        res = np.zeros((num_objs, 5)) 
+        res = np.zeros((num_objs, 5))
         for ix, obj in enumerate(objs):
             cls = self.class_ids.index(obj["category_id"])
             res[ix, 0:4] = obj["clean_bbox"]
@@ -134,11 +129,11 @@ class DAISDataset(CacheDataset):
             logger.info("For image {}, {} annotations were excluded".format(file_name, count))
 
         return (res, img_info, resized_info, file_name)
-    
+
     def _load_mag_tape_annotations(self):
         pool = multiprocessing.Pool(16)
         return pool.map(self.load_mag_tape_anno_from_ids, self.ids)
-    
+
     def load_mag_tape_anno_from_ids(self, id_):
         im_ann = self.coco.loadImgs(id_)[0]
         original_width = im_ann["width"]
@@ -147,8 +142,9 @@ class DAISDataset(CacheDataset):
         annotations = self.coco.loadAnns(anno_ids)
 
         # Split the annotations to bboxes and magnetic tape
-        mag_tape_annotations = [annotations[i] for i in range(len(annotations)) if "line" in annotations[i]]
-
+        mag_tape_annotations = [
+            annotations[i] for i in range(len(annotations)) if "line" in annotations[i]
+            ]
 
         # Only polylines
         lines = []
@@ -156,10 +152,8 @@ class DAISDataset(CacheDataset):
             points = line["line"]
             lines.append(points)
 
-
         x_scale = self.img_size[0] / original_width
         y_scale = self.img_size[1] / original_height
-
 
         # convert polylines to float and optionally scale them
         for polyline in lines:
@@ -168,12 +162,14 @@ class DAISDataset(CacheDataset):
                 line[1] = float(line[1]) * y_scale
 
         cartesian_lines = self.converter.to_cartesian(lines)
-        
         cartesian_lines = np.moveaxis(cartesian_lines, -1, 0)
-        
-        # cartesian_lines = np.moveaxis(cartesian_lines, -1, 1) # Now the annotations are in shape (5, 20, 20) when convertng to tensor add batch size
 
-        cartesian_lines = np.where(np.isnan(cartesian_lines), np.zeros_like(cartesian_lines), cartesian_lines)
+        # Now the annotations are in shape (5, 20, 20), when convertng to tensor add batch size
+        # cartesian_lines = np.moveaxis(cartesian_lines, -1, 1)
+
+        cartesian_lines = np.where(np.isnan(cartesian_lines),
+                                   np.zeros_like(cartesian_lines),
+                                   cartesian_lines)
 
         img_info = (original_height, original_width)
         resized_info = (int(self.img_size[0]), int(self.img_size[1]))
@@ -185,9 +181,9 @@ class DAISDataset(CacheDataset):
         )
 
         logger.info("Image {}".format(file_name))
-        
+
         return (cartesian_lines, img_info, resized_info, file_name)
-    
+
     def load_anno(self, index):
         return self.annotations[index][0]
 
@@ -249,6 +245,3 @@ class DAISDataset(CacheDataset):
 
         # logger.info(f"Target shape:{target.shape}, target type: {type(target)}.")
         return img, target, img_info, img_id
-
-####################################################################################################################################
-

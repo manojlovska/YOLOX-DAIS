@@ -178,7 +178,7 @@ class Trainer:
         # Tensorboard and Wandb loggers
         os.environ["HTTPS_PROXY"] = "http://www-proxy.ijs.si:8080"
         os.environ["https_proxy"] = "http://www-proxy.ijs.si:8080"
-        
+
         if self.rank == 0:
             if self.args.logger == "tensorboard":
                 self.tblogger = SummaryWriter(os.path.join(self.file_name, "tensorboard"))
@@ -197,7 +197,7 @@ class Trainer:
 
     def after_train(self):
         logger.info(
-            "Training of experiment is done and the best F1 score is {:.2f}".format(self.best_ap * 100)
+            "Training is done and the best F1 score is {:.2f}".format(self.best_ap * 100)
         )
         if self.rank == 0:
             if self.args.logger == "wandb":
@@ -342,21 +342,33 @@ class Trainer:
                 (eval_metrics_dict, summary), predictions = self.exp.eval(
                     evalmodel, self.evaluator, self.is_distributed, return_outputs=True
                 )
-            
+
             # F1 score is the global F1 score, not the cell based
             update_best_ckpt = eval_metrics_dict["f1_score"] > self.best_ap
             self.best_ap = max(self.best_ap, eval_metrics_dict["f1_score"])
 
             if self.rank == 0:
                 if self.args.logger == "tensorboard":
-                    self.tblogger.add_scalar("val/precision", eval_metrics_dict["precision"], self.epoch + 1)
-                    self.tblogger.add_scalar("val/recall", eval_metrics_dict["recall"], self.epoch + 1)
-                    self.tblogger.add_scalar("val/f1_score", eval_metrics_dict["f1_score"], self.epoch + 1)
+                    self.tblogger.add_scalar("val/precision",
+                                             eval_metrics_dict["precision"],
+                                             self.epoch + 1)
+                    self.tblogger.add_scalar("val/recall",
+                                             eval_metrics_dict["recall"],
+                                             self.epoch + 1)
+                    self.tblogger.add_scalar("val/f1_score",
+                                             eval_metrics_dict["f1_score"],
+                                             self.epoch + 1)
 
                     # Cell based evaluation metrics
-                    self.tblogger.add_scalar("val/cell_based_precision", eval_metrics_dict["cell_based_precision"], self.epoch + 1)
-                    self.tblogger.add_scalar("val/cell_based_recall", eval_metrics_dict["cell_based_recall"], self.epoch + 1)
-                    self.tblogger.add_scalar("val/cell_based_f1_score", eval_metrics_dict["cell_based_f1_score"], self.epoch + 1)
+                    self.tblogger.add_scalar("val/cell_based_precision",
+                                             eval_metrics_dict["cell_based_precision"],
+                                             self.epoch + 1)
+                    self.tblogger.add_scalar("val/cell_based_recall",
+                                             eval_metrics_dict["cell_based_recall"],
+                                             self.epoch + 1)
+                    self.tblogger.add_scalar("val/cell_based_f1_score",
+                                             eval_metrics_dict["cell_based_f1_score"],
+                                             self.epoch + 1)
 
                 if self.args.logger == "wandb":
                     self.wandb_logger.log_metrics({

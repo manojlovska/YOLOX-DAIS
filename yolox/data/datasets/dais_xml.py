@@ -1,24 +1,15 @@
-import torch
-from torch.utils.data import Dataset
-from torchvision import transforms
-from loguru import logger
-
-
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii, Inc. and its affiliates.
 import copy
 import os
 
 import cv2
 import numpy as np
+from loguru import logger
 
 from ..dataloading import get_yolox_datadir
 from .datasets_wrapper import CacheDataset, cache_read_img
 from .dais_classes import DAIS_CLASSES
 
 import xml.etree.ElementTree as ET
-
 
 
 class DAISDataset2(CacheDataset):
@@ -55,7 +46,9 @@ class DAISDataset2(CacheDataset):
 
         self._classes = DAIS_CLASSES
         self.class_ids = [i+1 for i in range(0, len(self._classes))]
-        self.cats = [{'id': v, 'name': n, 'supercategory': ''} for v, n in zip(self.class_ids, self._classes)]
+        self.cats = [
+            {'id': v, 'name': n, 'supercategory': ''} for v, n in zip(self.class_ids, self._classes)
+            ]
         self.name = name
         self.img_size = img_size
         self.preproc = preproc
@@ -87,7 +80,10 @@ class DAISDataset2(CacheDataset):
     def _load_annotations(self):
 
         all_images = self.root.findall("image")
-        images = [all_images[i] for i in range(0,len(all_images)) if all_images[i].attrib["subset"]==self.name]
+        images = [
+            all_images[i] for i in range(0, len(all_images))
+            if all_images[i].attrib["subset"] == self.name
+            ]
 
         annotations = []
         for image_elem in images:
@@ -107,12 +103,9 @@ class DAISDataset2(CacheDataset):
                 y2 = np.min((height, float(np.max((0, float(obj.get("ybr")))))))
 
                 if obj.findall("attribute/[@name='occluded']")[0].text is not None and int(obj.findall("attribute/[@name='occluded']")[0].text) != 3:
-                    # logger.info("attribute occluded: {}".format(obj.findall("attribute/[@name='occluded']")[0].text))
-
                     if x2 >= x1 and y2 >= y1:
                         obj.set("clean_bbox", [x1, y1, x2, y2])
                         objs.append(obj)
-                        # logger.info("m(xbr): {}, x2: {}, m(ybr): {}, y2: {}".format(x1+np.max((0, float(obj.get("xbr")))),x2,y1+np.max((0, float(obj.get("ybr")))),y2))
 
                 else:
                     count += 1
@@ -120,16 +113,12 @@ class DAISDataset2(CacheDataset):
 
             if count > 0:
                 logger.info("For image {}, {} annotations were excluded".format(file_name, count))
-                # logger.info("Attribute occluded: {}".format(len(obj.findall("attribute/[@name='occluded']"))))
-                
 
             num_objs = len(objs)
-            # logger.info("num_objs: {}".format(num_objs))
 
             res = np.zeros((num_objs, 5))
             for ix, obj in enumerate(objs):
                 cls = self._classes.index(obj.get("label")) + 1
-                # logger.info("cls: {}".format(cls))
                 res[ix, 0:4] = obj.get("clean_bbox")
                 res[ix, 4] = cls
 
@@ -140,10 +129,9 @@ class DAISDataset2(CacheDataset):
             resized_info = (int(height * r), int(width * r))
 
             annotations.append((res, img_info, resized_info, file_name))
-        # logger.info("len(annotations): {}".format(len(annotations)))
 
         return annotations
-    
+
     def load_anno(self, index):
         return self.annotations[index][0]
 
@@ -203,5 +191,3 @@ class DAISDataset2(CacheDataset):
         if self.preproc is not None:
             img, target = self.preproc(img, target, self.input_dim)
         return img, target, img_info, img_id
-
-

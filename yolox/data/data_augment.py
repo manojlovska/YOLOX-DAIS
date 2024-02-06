@@ -11,17 +11,11 @@ http://arxiv.org/abs/1512.02325
 
 import math
 import random
-from typing import Any
-
 import cv2
 import numpy as np
-
-from yolox.utils import xyxy2cxcywh
-
 import torch
-from loguru import logger
-from torchvision import transforms
 import wandb
+from yolox.utils import xyxy2cxcywh
 
 
 def augment_hsv(img, hgain=5, sgain=30, vgain=30):
@@ -165,7 +159,7 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 
 class TrainTransformYOLinO:
-    def __init__(self, hsv_prob = 1.0, sweeps=False):
+    def __init__(self, hsv_prob=1.0, sweeps=False):
         self.hsv_prob = hsv_prob
         self.sweeps = sweeps
 
@@ -186,6 +180,7 @@ class TrainTransformYOLinO:
 
         return image, lines
 
+
 class ValTransformYOLinO:
     def __init__(self, swap=(2, 0, 1), legacy=False):
         self.swap = swap
@@ -199,7 +194,7 @@ class ValTransformYOLinO:
             img /= 255.0
             img -= np.array([0.485, 0.456, 0.406]).reshape(3, 1, 1)
             img /= np.array([0.229, 0.224, 0.225]).reshape(3, 1, 1)
-        
+
         # Convert to tensors
         lines = torch.from_numpy(targets)
         image = torch.tensor(img)

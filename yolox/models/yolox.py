@@ -6,8 +6,7 @@ import torch.nn as nn
 
 from .yolo_head import YOLOXHead
 from .yolo_pafpn import YOLOPAFPN
-from .yolino_head import YOLinOHead
-from loguru import logger
+
 
 class YOLOX(nn.Module):
     """
@@ -48,7 +47,7 @@ class YOLOX(nn.Module):
                 }
             else:
                 outputs = self.head(fpn_outs)
-                
+
         else:
             # Magnetic tape detection with YOLinO
             if self.training:
@@ -61,10 +60,9 @@ class YOLOX(nn.Module):
                     "no_responsible_loss": L_noresp,
                     "total_loss": total_loss
                 }
-            
+
             else:
                 outputs = self.head_yolino(fpn_outs[-1])
-
 
         return outputs
 

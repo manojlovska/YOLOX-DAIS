@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-# Copyright (c) Megvii, Inc. and its affiliates.
-
 import contextlib
 import io
 import itertools
@@ -14,7 +10,7 @@ from tabulate import tabulate
 from tqdm import tqdm
 
 import numpy as np
-from statistics import mean 
+from statistics import mean
 
 import torch
 
@@ -79,8 +75,7 @@ def per_class_AP_table(coco_eval, class_names=DAIS_CLASSES, headers=["class", "A
 
 class DAISEvaluator:
     """
-    COCO AP Evaluation class.  All the data in the val2017 dataset are processed
-    and evaluated by COCO API.
+    DAIS AP Evaluation class.
     """
 
     def __init__(
@@ -93,7 +88,7 @@ class DAISEvaluator:
         testdev: bool = False,
         per_class_AP: bool = True,
         per_class_AR: bool = True,
-        mag_tape = False,
+        mag_tape=False,
     ):
         """
         Args:
@@ -105,6 +100,7 @@ class DAISEvaluator:
             nmsthre: IoU threshold of non-max supression ranging from 0 to 1.
             per_class_AP: Show per class AP during evalution or not. Default to True.
             per_class_AR: Show per class AR during evalution or not. Default to True.
+            mag_tape: True if evaluating magnetic tape detection.
         """
         self.mag_tape = mag_tape
         self.dataloader = dataloader
@@ -130,9 +126,17 @@ class DAISEvaluator:
             model : model to evaluate.
 
         Returns:
-            ap50_95 (float) : COCO AP of IoU=50:95
-            ap50 (float) : COCO AP of IoU=50
-            summary (sr): summary info of evaluation.
+            YOLOX:
+                ap50_95 (float) : COCO AP of IoU=50:95
+                ap50 (float) : COCO AP of IoU=50
+                summary (sr): summary info of evaluation.
+            YOLinO:
+                precision,
+                recall,
+                f1_score,
+                cell_based_precision,
+                cell_based_recall,
+                cell_based_f1_score
         """
         # TODO half to amp_test
         tensor_type = torch.cuda.HalfTensor if half else torch.cuda.FloatTensor
@@ -200,7 +204,6 @@ class DAISEvaluator:
                 return eval_results, output_list
             return eval_results
 
-                    
         # YOLOX evaluation
         else:
             for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
@@ -277,12 +280,12 @@ class DAISEvaluator:
 
         info = time_info + "\n"
 
-        batch_size = self.dataloader.batch_size
         annotations = self.dataloader.dataset.annotations
 
         # Extract the ground truths from the annotations
-        # print(ground_truth[0] for ground_truth in annotations[:2])
-        ground_truths = [torch.from_numpy(ground_truth[0]).permute(1, 2, 0) for ground_truth in annotations] # Mozda kje treba da dodades edna nula kaj permute i drugite indeksi da gi zgolemis za 1
+        ground_truths = [
+            torch.from_numpy(ground_truth[0]).permute(1, 2, 0) for ground_truth in annotations
+            ]
 
         metrics_yolino = {}
         if len(ground_truths) == len(output_list):
@@ -296,15 +299,10 @@ class DAISEvaluator:
 
             for i in range(len(output_list)):
                 prediction = output_list[i]
-                # print(f"Prediction shape: {prediction.shape}")
                 ground_truth = ground_truths[i]
-                # print(f"Ground truth shape: {ground_truth.shape}")
 
-                # print(f"Ground truth: {ground_truth}, prediction: {prediction}")
-                
                 # Reshape ground truth as prediction
                 ground_truth = ground_truth.reshape_as(prediction)
-                # print(f"Ground truth shape: {ground_truth.shape}")
 
                 """ CHECK ONLY DISTANCES BETWEEN START AND END POINTS OF GT AND PREDICTION """
                 coords_gt = ground_truth[:, :, :4].float().to("cpu")
@@ -314,39 +312,21 @@ class DAISEvaluator:
                 confs_pred = prediction[:, :, -1].float().to("cpu")
 
                 num_ground_truths = (confs_gt > 0).sum(dim=0)
-                # print(f"Number of ground truths: {num_ground_truths}")
 
                 num_predictions = (confs_pred > t_conf).sum(dim=0)
-                # print(f"Number of predictions: {num_predictions}")
 
                 # HIGH LEVEL METRICS
                 # True positives
                 true_positives = torch.logical_and(confs_gt > 0, confs_pred > t_conf).sum(dim=0)
-                # print(f"True positives: {true_positives}")
-
-                # False positives
-                false_positives = torch.logical_and(confs_gt < 1, confs_pred > t_conf).sum(dim=0)
-                # print(f"False positives: {false_positives}")
-
-                # True negatives
-                true_negatives = torch.logical_and(confs_gt < 1, confs_pred < t_conf).sum(dim=0)
-                # print(f"True negatives: {true_negatives}")
-
-                # False negatives
-                false_negatives = torch.logical_and(confs_gt > 0, confs_pred < t_conf).sum(dim=0)
-                # print(f"False negatives: {false_negatives}")
 
                 # Precision
                 precision = true_positives / (num_predictions + 1e-15)
-                # print(f"Precision: {precision.item()}")
 
                 # Recall
                 recall = true_positives / (num_ground_truths + 1e-15)
-                # print(f"Recall: {recall}")
 
                 # F1
                 f1_score = 2 * (precision * recall) / (precision + recall + 1e-15)
-                # print(f"F1 score: {f1_score}")
 
                 # Append the lists for every image
                 precision_list.append(precision.item())
@@ -355,20 +335,17 @@ class DAISEvaluator:
 
                 # CELL LEVEL METRICS
                 calculate_distances = torch.logical_and(confs_gt > 0, confs_pred > t_conf)
-                check_distances = torch.logical_and(torch.linalg.norm(coords_gt[:, :, :2] - coords_pred[:, :, :2], dim=-1) < t_cell, 
+                check_distances = torch.logical_and(torch.linalg.norm(coords_gt[:, :, :2] - coords_pred[:, :, :2], dim=-1) < t_cell,
                                                     torch.linalg.norm(coords_gt[:, :, 2:] - coords_pred[:, :, 2:], dim=-1) < t_cell)
 
-                true_positives_cell = torch.logical_and(calculate_distances, check_distances).sum(dim=0)
-
-                # print(f"Cell based true positives: {true_positives_cell}")
+                true_positives_cell = torch.logical_and(calculate_distances,
+                                                        check_distances).sum(dim=0)
 
                 # Cell based precision
                 precision_cell = true_positives_cell / (num_predictions + 1e-15)
-                # print(f"Cell based precision: {precision_cell}")
 
                 # Cell based recall
                 recall_cell = true_positives_cell / (num_ground_truths + 1e-15)
-                # print(f"Cell based recall: {recall_cell}")
 
                 # Cell based F1 score
                 f1_score_cell = 2 * (precision_cell * recall_cell) / (precision_cell + recall_cell + 1e-15)
@@ -379,21 +356,22 @@ class DAISEvaluator:
                 f1_score_cell_list.append(f1_score_cell.item())
 
             metrics_yolino.update({"precision": mean(precision_list),
-                                  "recall": mean(recall_list),
-                                  "f1_score": mean(f1_score_list),
-                                  
-                                  "cell_based_precision": mean(precision_cell_list),
-                                  "cell_based_recall": mean(recall_cell_list),
-                                  "cell_based_f1_score": mean(f1_score_cell_list)})
-            
+                                   "recall": mean(recall_list),
+                                   "f1_score": mean(f1_score_list),
+
+                                   "cell_based_precision": mean(precision_cell_list),
+                                   "cell_based_recall": mean(recall_cell_list),
+                                   "cell_based_f1_score": mean(f1_score_cell_list)})
+
         return metrics_yolino, info
-    
+
     # Integrate afterwards
+    # Currently not using
     def interpolate_line_segment(self, point1, point2):
         # Calculate the number of steps based on the distance
         distance = np.linalg.norm(np.array(point2) - np.array(point1))
         print(distance)
-        
+
         min_points = 2
         density_factor = 10.0
 
@@ -408,14 +386,14 @@ class DAISEvaluator:
             interpolated_points = list(zip(x_values, y_values))
 
         # (x2 < x1 and y2 < y1) or (x2 < x1 and y2 > y1)
-        elif (point2[0] < point1[0] and point2[1] <  point1[1]) or (point2[0] < point1[0] and point2[1] > point1[1]):
+        elif (point2[0] < point1[0] and point2[1] < point1[1]) or (point2[0] < point1[0] and point2[1] > point1[1]):
             x_values = np.linspace(point2[0], point1[0], num_points)
             y_values = np.linspace(point2[1], point1[1], num_points)
             interpolated_points = list(zip(x_values, y_values))
             interpolated_points.reverse()
 
         return interpolated_points
-    
+
     def convert_to_coco_format(self, outputs, info_imgs, ids, return_outputs=False):
         data_list = []
         image_wise_data = defaultdict(dict)
