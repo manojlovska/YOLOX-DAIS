@@ -246,7 +246,7 @@ class Trainer:
             )
             loss_meter = self.meter.get_filtered_meter("loss")
             loss_str = ", ".join(
-                ["{}: {:.1f}".format(k, v.latest.item()) for k, v in loss_meter.items()]
+                ["{}: {:.1f}".format(k, v.latest) for k, v in loss_meter.items()]
             )
 
             time_meter = self.meter.get_filtered_meter("time")

@@ -9,9 +9,10 @@ from yolox.exp import Exp as MyExp
 # from .base_exp import BaseExp
 
 from dvclive import Live
-# import wandb
+import wandb
 
-# wandb.init()
+os.environ['WANDB_PROJECT'] = 'YOLOX-TEST'
+run = wandb.init(project='YOLOX-TEST', reinit=True)
 
 
 class Exp(MyExp):
@@ -29,6 +30,9 @@ class Exp(MyExp):
 
         self.weight_decay = 5e-4
         self.momentum = 0.9
+
+        # When training YOLinO set mag_tape to True
+        self.mag_tape = False
 
         # --------------- transform config ----------------- #
         self.degrees = 10.0
@@ -48,13 +52,14 @@ class Exp(MyExp):
         self.input_size = (640, 640)
         self.random_size = (10, 20)
         self.test_size = (640, 640)
-        self.eval_interval = 10
+        self.eval_interval = 1
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         # modify 'silu' to 'relu' for deployment on DPU
         self.act = 'relu'
         self.thresh_lr_scale = 10
         self.device = torch.device('cuda')
         torch.backends.cudnn.enabled = False
+        self.wandb_name = run.name
 
         logger.info("GPU MEMORY AVAILABLE: " + str(torch.cuda.mem_get_info()))
 
@@ -117,6 +122,7 @@ class Exp(MyExp):
             data_dir=self.data_dir,
             json_file=self.train_ann,
             img_size=self.input_size,
+            mag_tape=self.mag_tape,
             preproc=TrainTransform(
                 max_labels=50,
                 flip_prob=self.flip_prob,
@@ -205,6 +211,7 @@ class Exp(MyExp):
             json_file=self.val_ann if not testdev else self.test_ann,
             name="valid" if not testdev else "test",
             img_size=self.test_size,
+            mag_tape=self.mag_tape,
             preproc=ValTransform(legacy=legacy),
         )
 

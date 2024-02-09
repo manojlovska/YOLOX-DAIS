@@ -33,7 +33,7 @@ class DAISDataset(CacheDataset):
         Args:
             data_dir (str): dataset root directory
             json_file (str): DAIS json file name
-            name (str): DAIS data name (e.g. 'train' or 'val')
+            name (str): DAIS data name (e.g. 'train' or 'valid')
             img_size (int): target image size after pre-processing
             preproc: data augmentation strategy
         """
@@ -47,7 +47,7 @@ class DAISDataset(CacheDataset):
                                    height=img_size[1],
                                    square_size=self.square_size)
 
-        self.coco = COCO(os.path.join(self.data_dir, "annotations_xml", self.json_file))
+        self.coco = COCO(os.path.join(self.data_dir, "annotations", self.json_file))
         self.ids = self.coco.getImgIds()
         self.num_imgs = len(self.ids)
         self.class_ids = sorted(self.coco.getCatIds())
@@ -56,8 +56,7 @@ class DAISDataset(CacheDataset):
         self.name = name
         self.img_size = img_size
         self.preproc = preproc
-        self.annotations = self._load_mag_tape_annotations() if self.mag_tape \
-            else self._load_coco_annotations()
+        self.annotations = self._load_mag_tape_annotations() if self.mag_tape else self._load_coco_annotations()
 
         path_filename = [os.path.join(name, anno[3]) for anno in self.annotations]
 
